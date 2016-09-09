@@ -1,0 +1,17 @@
+{
+  "entries": {
+    "main": {
+      "js": "/static/main.js"
+    },
+    "manage/files": {
+      "js": "/static/manage/files.chunk.js?44f22db50f663c1cad09"
+    },
+    "manage": {
+      "js": "/static/manage.chunk.js?e3ddd6d534974cb5b126"
+    },
+    "manage/edit": {
+      "js": "/static/manage/edit.chunk.js?52af43836c118c62d93f"
+    }
+  },
+  "assets": []
+}

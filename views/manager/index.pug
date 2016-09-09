@@ -1,0 +1,16 @@
+doctype html
+html(lang="zh")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1")
+    title= title
+  body
+    div#root.
+      !{content}
+  script.
+    window.__INITIAL_STATE__ = !{initialState};
+  if NODE_ENV === 'production'
+    //- do nothing
+  else
+    script(src="/static/vendor.dll.js")
+  script(src="/static/main.js")
