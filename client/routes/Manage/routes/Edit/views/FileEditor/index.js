@@ -1,8 +1,20 @@
 import React, { Component, PropTypes } from 'react';
 import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
-import { fetchFileContent } from '../../actions/file';
+import { fetchFileContent, saveFile } from '../../actions/file';
 import { getFileContent } from '../../reducers/file';
+
+import { 
+  setAactionBarRMenu 
+} from 'client/routes/Manage/actions/actionBar';
+import IconButton from 'material-ui/IconButton';
+import DoneIcon from 'material-ui/svg-icons/action/done';
+import { white } from 'material-ui/styles/colors';
+
+import {
+  openSnackBar,
+} from 'client/actions/snackBar';
+
 import brace from 'brace';
 import AceEditor from 'react-ace';
 
@@ -29,6 +41,52 @@ function getMode(ext) {
 class FileEditor extends Component {
   constructor(props, context) {
     super(props, context);
+
+    this.originFileContent = props.content;
+
+    this.saveBtn = (
+      <IconButton onTouchTap={this.saveFile}>
+        <DoneIcon color={white} />
+      </IconButton>
+    );
+  }
+
+  onChange = (newValue) => {
+    if (this.originFileContent !== newValue) {
+      // file changed
+      this.curFileContent = newValue;
+      this.props.actions.setAactionBarRMenu({
+        element: this.saveBtn,
+      });
+
+    } else {
+      // 没改变，隐藏保存图标
+      this.props.actions.setAactionBarRMenu(undefined);
+    }
+  };
+
+  saveFile = () => {
+    const {
+      actions : {
+        saveFile,
+        openSnackBar,
+        setAactionBarRMenu
+      },
+      fullname,
+    } = this.props;
+    saveFile({ filename: fullname, content: this.curFileContent })
+      .then(() => {
+        this.originFileContent = this.curFileContent;
+        setAactionBarRMenu(undefined);
+        openSnackBar({
+          message: '保存成功！'
+        })
+      })
+      .catch(() => {
+        openSnackBar({
+          message: '保存失败！请重试！'
+        });
+      });
   }
 
   componentDidMount() {
@@ -37,7 +95,13 @@ class FileEditor extends Component {
     )
   }
 
+  componentWillUnmount() {
+    this.props.actions.setAactionBarRMenu(undefined);
+  }
+
   render() {
+    this.originFileContent = this.props.content;
+
     return (
       <div className="FileEditor">
         <AceEditor
@@ -45,6 +109,7 @@ class FileEditor extends Component {
           mode={getMode(this.props.ext)}
           theme="github"
           value={this.props.content}
+          onChange={this.onChange}
           width="100%"
           height="calc(100vh - 64px)"
           fontSize={16}
@@ -75,6 +140,8 @@ function ssrGetFileContent(location) {
 function mapStateToProps(state) {
   const file = getFileContent(state);
   return {
+    name: file.name,
+    fullname: file.fullname,
     ext: file.ext,
     content: file.content,
   };
@@ -83,7 +150,10 @@ function mapStateToProps(state) {
 function mapDispatchToProps(dispatch) {
   return {
     dispatch: dispatch,
-    actions: bindActionCreators({ fetchFileContent }, dispatch),
+    actions: bindActionCreators({
+      fetchFileContent, saveFile,
+      setAactionBarRMenu, openSnackBar,
+    }, dispatch),
   }
 }
 

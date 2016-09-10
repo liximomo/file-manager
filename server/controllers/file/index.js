@@ -5,6 +5,7 @@ import config from '../../config';
 import { argv } from 'optimist';
 import mime from 'mime';
 import path from 'path';
+import bodyParser from 'body-parser';
 
 let basePath = argv.basePath !== undefined ? argv.basePath : config.basePath;
 function checkPath(req, res, next, fiename) {
@@ -66,8 +67,48 @@ function getFileConent(req, res, next) {
             })
           );
       }
+    })
+    .catch(err => next(err));
+}
+
+function saveFile(req, res, next) {
+  const filename = req.params.fiename;
+  fileUtil
+    .isFileExist(filename)
+    .then(isExist => {
+      if (!isExist) {
+        next(new Error('文件不存在！'));
+        return;
+      }
+
+      fileUtil
+        .saveFile(filename, req.body.content)
+        .then(() =>
+          res.send({ code: 200 })
+        )
+        .catch(err => next(err));
     });
 }
+
+function newFile(req, res, next) {
+  const filename = req.params.fiename;
+  fileUtil
+    .isFileExist(filename)
+    .then(isExist => {
+      if (isExist) {
+        next(new Error('文件已存在！'));
+        return;
+      }
+
+      fileUtil
+        .saveFile(filename, req.body.content)
+        .then(() =>
+          res.send({ code: 200 })
+        )
+        .catch(err => next(err));
+    });
+}
+
 
 function downLoadFile(req, res, next) {
   fileUtil
@@ -96,6 +137,11 @@ const router = new express.Router();
 router.param('fiename', checkPath)
 // router.use('/files/:fiename', checkPath);
 
+router.use(bodyParser.urlencoded({ extended: false }));
+
+// parse application/json
+router.use(bodyParser.json());
+
 // replace assets
 const filesRoute = new paramsRoute();
 filesRoute.add('format=file', downLoadFile);
@@ -103,7 +149,9 @@ filesRoute.add('children', getDirtoryFilesInfo);
 filesRoute.add('format=text', getFileConent);
 
 router.route('/files/:fiename')
-  .get(filesRoute.route());
+  .get(filesRoute.route())
+  .put(saveFile)
+  .post(newFile);
 
 router.route('/basePath')
   .get(getBasePath);

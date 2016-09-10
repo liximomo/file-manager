@@ -1,5 +1,6 @@
 import Files from './routes/Files';
 import Edit from './routes/Edit';
+import { injectAsyncReducer } from 'client/store';
 import { fullpath as parentPath } from '../../route';
 
 const pageName = 'manage';
@@ -9,12 +10,13 @@ const fullpath = `${parentPath}/manage`;
 const createRoute = store => ({
   path: path,
   getComponent(nextState, cb) {
+    const reducers = require('./reducers').default;
+    injectAsyncReducer(store, pageName, reducers);
+
     if (process.env.PLANTFORM === 'node') {
       cb(null, require('./views/Manage').default);
     } else {
       require.ensure([], require => {
-        //const reducers = require('./reducers').default;
-        // injectAsyncReducer(store, pageName, reducers);
         cb(null, require('./views/Manage').default);
       }, 'manage');
     }

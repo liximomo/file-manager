@@ -3,6 +3,21 @@ const path = require('path');
 const archiver = require('archiver');
 
 /**
+ * 检测是否存在并且是 file
+ * @param  {[type]} filename [description]
+ * @return {[type]}          [description]
+ */
+export function isFileExist(filename) {
+  return new Promise((resolve, reject) => {
+    fs.stat(filename, function(err, stat) {
+      if (err || !stat.isFile()) resolve(false);
+      resolve(true);
+    });
+  });
+}
+
+
+/**
  * [getFileStats description]
  * @param  {[type]}   file [description]
  * @param  {Function} done [description]
@@ -62,6 +77,17 @@ export function getFileContent(filename) {
         reject(err);
       }
       resolve(data.toString());
+    });
+  });
+}
+
+export function saveFile(filename, content) {
+  return new Promise((resolve, reject) => {
+    fs.writeFile(filename, content, 'utf-8', function (err) {
+      if (err) {
+        reject(err);
+      }
+      resolve(true);
     });
   });
 }

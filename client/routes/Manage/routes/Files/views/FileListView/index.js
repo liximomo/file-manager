@@ -5,19 +5,21 @@ import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import fetch from 'client/util/fetch';
 import { 
-  fetchDirFiles, fetchBasePath 
+  fetchDirFiles 
 } from '../../actions/files';
 import { 
   getCurDirInfo,
-  getBasePath
 } from '../../reducers/files';
+
 import FileListItem from '../../components/FileListItem';
 import { List, MakeSelectable, ListItem } from 'material-ui/List';
+import FloatingActionButton from 'material-ui/FloatingActionButton';
 import IconButton from 'material-ui/IconButton';
 import MoreVertIcon from 'material-ui/svg-icons/navigation/more-vert';
+import ContentAdd from 'material-ui/svg-icons/content/add';
 import IconMenu from 'material-ui/IconMenu';
 import MenuItem from 'material-ui/MenuItem';
-import { grey400 } from 'material-ui/styles/colors';
+import { grey400, red500 } from 'material-ui/styles/colors';
 import { join } from 'client/util/url';
 import history from 'client/history/history';
 
@@ -80,7 +82,19 @@ class FileListView extends Component {
     }
   }
 
-  componentDidUpdate() {
+  // shouldComponentUpdate(nextProps) {
+  //   return this.props.curDir !== nextProps.curDir;
+  // }
+
+  componentDidMount() {
+    FileListView.need.forEach(need =>
+      this.props.dispatch(need(this.props.location))
+    )
+  }
+
+  componentDidUpdate(preProps) {
+    if (this.props.location.search === preProps.location.search) return;
+
     FileListView.need.forEach(need => 
       this.props.dispatch(need(this.props.location))
     )
@@ -89,8 +103,10 @@ class FileListView extends Component {
   render() {
     const {
       files,
-      isRoot,
+      curDir
     } = this.props;
+
+    const isRoot = this.props.basePath === curDir;
 
     const fileItems = files.map((file, index) =>
       <ListItem
@@ -119,6 +135,16 @@ class FileListView extends Component {
           {fileItems}
         </SelectedList>
         {downloadFileAddress && <iframe src={downloadFileAddress} style={{display: 'none'}} />}
+        <FloatingActionButton 
+          style={{ 
+            background: red500,
+            position: 'fixed',
+            bottom: 23,
+            right: 23,
+          }}
+        >
+          <ContentAdd />
+        </FloatingActionButton>
       </div>
     );
   }
@@ -129,7 +155,7 @@ FileListView.propTypes = {
   children: PropTypes.node,
 };
 
-FileListView.need = [ssrGetBasePath, ssrGetFiles];
+FileListView.need = [ssrGetFiles];
 
 function ssrGetFiles(location) {
   const filename = location.query.filename;
@@ -140,15 +166,11 @@ function ssrGetFiles(location) {
   return fetchDirFiles(filename);
 }
 
-function ssrGetBasePath(location) {
-  return fetchBasePath();
-}
-
 function mapStateToProps(state) {
   const dir = getCurDirInfo(state);
   return {
-    isRoot: getBasePath(state) === dir.fullname,
     files: dir.children,
+    curDir: dir.fullname,
     parent: dir.parent,
   };
 }

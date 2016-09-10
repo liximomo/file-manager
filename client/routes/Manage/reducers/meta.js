@@ -1,26 +1,23 @@
 import { 
-  FETCH_FILES,
-} from '../constants/FileActionTypes';
+  FETCH_BASE_PATH
+} from '../constants/MetaActionTypes';
 import createReducer from 'client/reducers/createReducer';
 import { pageName } from '../index';
 
 const initialState = {
   basePath: undefined,
-  curDir: {
-    children: [],
-  }
 };
 
 export default createReducer(initialState, {
-  [FETCH_FILES](state, action) {
+  [FETCH_BASE_PATH](state, action) {
     return {
       ...state,
-      curDir: action.payload
+      basePath: action.payload.data
     };
   },
 
 });
 
-export function getCurDirInfo(state) {
-  return state[pageName].files.curDir;
+export function getMeta(state) {
+  return state[pageName].meta;
 }

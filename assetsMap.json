@@ -4,13 +4,13 @@
       "js": "/static/main.js"
     },
     "manage/files": {
-      "js": "/static/manage/files.chunk.js?44f22db50f663c1cad09"
+      "js": "/static/manage/files.chunk.js"
     },
     "manage": {
-      "js": "/static/manage.chunk.js?e3ddd6d534974cb5b126"
+      "js": "/static/manage.chunk.js"
     },
     "manage/edit": {
-      "js": "/static/manage/edit.chunk.js?52af43836c118c62d93f"
+      "js": "/static/manage/edit.chunk.js"
     }
   },
   "assets": []
