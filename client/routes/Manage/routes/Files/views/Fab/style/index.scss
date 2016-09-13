@@ -1,0 +1,55 @@
+.cover {
+  position: fixed;
+  width: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1100; /* just above title bar */
+  transition: opacity 0.2s ease-in-out;
+  opacity: 1;
+
+  /* Permalink - use to edit and share this gradient: http://colorzilla.com/gradient-editor/#5dc1b2+0,1fbcd2+100 */
+  background: #5dc1b2; /* Old browsers */
+  background: linear-gradient(135deg, #FF6B6B 0%, #556270 100%); /* W3C, IE10+, FF16+, Chrome26+, Opera12+, Safari7+ */
+}
+
+.closed .cover {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out, height 0s linear 0.2s;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.container {
+  z-index: 1110;
+}
+
+.button {
+  transition: transform 0.2s ease-in-out;
+}
+
+.closed .button {
+  transform: scale(0, 0);
+}
+
+.action {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.tooltip {
+  position: absolute;
+  right: 75px;
+  top: 10px;
+  color: white;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.opened .main svg {
+  transform: rotate(135deg);
+}

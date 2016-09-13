@@ -5,10 +5,10 @@ import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 
 import {
-  setAactionBarRMenu 
+  setAactionBar 
 } from '../../actions/actionBar';
 import {
-  getMenu,
+  getActionBarProps,
 } from '../../reducers/actionBar';
 
 import {
@@ -35,30 +35,34 @@ class Manage extends Component {
 
   handleClose = () => this.setState({open: false})
 
-  getAppBarMenu() {
-    const menu = {};
-    const { rightMenu } = this.props.appBarMenu;
-    if (rightMenu) {
-      menu.iconElementRight = rightMenu.element;
-    }
+  // getAppBarProps() {
+  //   const menu = {};
+  //   const { rightMenu, title } = this.props.appBar;
+  //   if (rightMenu) {
+  //     menu.iconElementRight = rightMenu.element;
+  //   }
 
-    return menu;
-  }
+  //   if (title) {
+  //     menu.title = title.text;
+  //     menu.onTitleTouchTap = title.onTouchTap;
+  //   }
+
+  //   return menu;
+  // }
   
   goHme() {
     history.push('/manage/files');
   }
 
   render() {
-    const appBarMenu = this.getAppBarMenu();
+    const appBar = this.props.appBar;
     return (
       <div className="Manage">
-        {}
         <AppBar 
           title="Cloud File"
           onTitleTouchTap={this.goHme}
           onLeftIconButtonTouchTap={this.handleToggle}
-          {...appBarMenu}
+          {...appBar}
         />
         <Drawer
           docked={false}
@@ -83,7 +87,7 @@ class Manage extends Component {
 Manage.propTypes = {
   location: PropTypes.object, // react-router 注入属性
   children: PropTypes.node,
-  rightMenu: PropTypes.any, // 右侧菜单
+  appBar: PropTypes.any, // 右侧菜单
 };
 
 Manage.need = [ssrGetBasePath];
@@ -94,7 +98,7 @@ function ssrGetBasePath(location) {
 
 function mapStateToProps(state) {
   return {
-    appBarMenu: getMenu(state),
+    appBar: getActionBarProps(state),
     meta: getMeta(state)
   };
 }
@@ -102,7 +106,7 @@ function mapStateToProps(state) {
 function mapDispatchToProps(dispatch) {
   return {
     dispatch,
-    actions: bindActionCreators({ setAactionBarRMenu }, dispatch),
+    actions: bindActionCreators({ setAactionBar }, dispatch),
   }
 }
 

@@ -59,9 +59,9 @@ export default function promiseMiddleware(store) {
     return fulfillPromise(action.payload)
       .then(
         response => {
-          // if (response.code !== 200) {
-          //   return next(actionWith({ payload: response, fail: true }, pendingMeta));
-          // }
+          if (response.error) {
+            return next(actionWith({ payload: response, fail: true }, pendingMeta));
+          }
           
           return next(actionWith({ payload: response }, pendingMeta));
         },

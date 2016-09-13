@@ -5,13 +5,19 @@ export default function createReducer(initialState, handlers) {
         if (process.env.NODE_ENV !== 'production') {
           console.log('action error:', action);
         }
-        return state.error = action.payload;
+        return {
+          ...state,
+          error: action.payload
+        };
       }
       if(action.fail) {
         if (process.env.NODE_ENV !== 'production') {
           console.log('action fail:', action);
         }
-        return state.fail = action.payload;
+        return {
+          ...state,
+          fail: action.payload
+        };
       }
       return handlers[action.type](state, action);
     }

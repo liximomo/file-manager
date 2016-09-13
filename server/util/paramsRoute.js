@@ -10,24 +10,36 @@ class paramsRoute {
 
   route() {
     return (req, res, next) => {
+      let handle = false;
       Object.keys(this.handleMap)
         .map(key => {
-          const paramPattern = key.split('=');
+          const params = key.split('&')
+            .map(query => {
+              const paramPattern = key.split('=');
+              return {
+                name: paramPattern[0],
+                value: paramPattern.length > 1 ? paramPattern[1] : null,
+              };
+            });
           return {
-            name: paramPattern[0],
-            value: paramPattern.length > 1 ? paramPattern[1] : null,
+            params,
             handle: (this.handleMap)[key],
-          };
+          }
         })
-        .forEach(param => {
-          const isExist = param.name in (req.query);
-          if (!isExist) return;
-
-          const value = (req.query)[param.name];
-          if (param.value != null && param.value !== value) return;
-
-          param.handle(req, res, next);
+        .forEach(pattern => {
+          const noMatch = pattern.params.some(param => {
+            const isExist = param.name in (req.query);
+            const value = (req.query)[param.name];
+            const notEqual = param.value != null && param.value !== value;
+            return !isExist || notEqual;
+          })
+          
+          if (noMatch) return;
+          handle = true;
+          pattern.handle(req, res, next);
         });
+
+        if (!handle) next();
     };
   }
 

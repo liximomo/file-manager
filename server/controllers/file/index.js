@@ -1,4 +1,5 @@
 import express from 'express';
+import util from 'util';
 import * as fileUtil from '../../services/file';
 import paramsRoute from '../../util/paramsRoute';
 import config from '../../config';
@@ -6,13 +7,35 @@ import { argv } from 'optimist';
 import mime from 'mime';
 import path from 'path';
 import bodyParser from 'body-parser';
+import formidable from 'formidable';
 
 let basePath = argv.basePath !== undefined ? argv.basePath : config.basePath;
-function checkPath(req, res, next, fiename) {
-  if (fiename.indexOf(basePath) === 0 || fiename === '<default>') {
+function checkParamsPath(req, res, next, filename) {
+  if (filename.indexOf(basePath) === 0 || filename === '<default>') {
     next();
   } else {
-    res.status(403).end();
+    res.status(403).send({
+      error: true,
+      message: '403'
+    });
+  }
+}
+
+function checkQueryPath(req, res, next) {
+  let filenames = [req.query, req.body]
+    .map(body => (body ? body.filename : undefined))
+    .filter(param => param !== undefined);
+  let violates = [];
+  violates = filenames.filter(filename => filename !== undefined && !(filename.indexOf(basePath) === 0 || filename === '<default>'));
+
+  if (violates.length) {
+    // 检查不通过
+    res.status(403).send({
+      error: true,
+      message: '403'
+    });
+  } else {
+    next();
   }
 }
 
@@ -33,15 +56,30 @@ function getBasePath(req, res, next) {
  * @return {[type]}     [description]
  */
 function getDirtoryFilesInfo(req, res, next) {
-  let fiename = req.params.fiename;
-  if (fiename === '<default>') {
-    fiename = basePath;
+  let filename = req.params.filename;
+  if (filename === '<default>') {
+    filename = basePath;
   }
 
-  fileUtil.getDirFileStats(fiename, (err, results) => {
+  fileUtil.getDirFileStats(filename, (err, results) => {
     if (err) next(err);
     res.json(results);
   });
+}
+
+/**
+ * 新建文件夹
+ * @param  {[type]} req [description]
+ * @param  {[type]} res [description]
+ * @return {[type]}     [description]
+ */
+function newFolder(req, res) {
+  const directoryPath = path.join(req.params.filename, req.query.name);
+  fileUtil
+    .createFolder(directoryPath)
+    .then(() => fileUtil.getFileStats(directoryPath))
+    .then(stat => res.send(stat))
+    .catch(err => next(err))
 }
 
 /**
@@ -52,7 +90,7 @@ function getDirtoryFilesInfo(req, res, next) {
  */
 function getFileConent(req, res, next) {
   fileUtil
-    .getFileStats(req.params.fiename)
+    .getFileStats(req.params.filename)
     .then(stat => {
       if (stat.directory) {
         next(new Error('文件类型不正确'));
@@ -72,7 +110,7 @@ function getFileConent(req, res, next) {
 }
 
 function saveFile(req, res, next) {
-  const filename = req.params.fiename;
+  const filename = req.params.filename;
   fileUtil
     .isFileExist(filename)
     .then(isExist => {
@@ -91,7 +129,7 @@ function saveFile(req, res, next) {
 }
 
 function newFile(req, res, next) {
-  const filename = req.params.fiename;
+  const filename = req.params.filename;
   fileUtil
     .isFileExist(filename)
     .then(isExist => {
@@ -109,10 +147,27 @@ function newFile(req, res, next) {
     });
 }
 
+function uploadFile(req, res, next) {
+  const basePath = req.params.filename;
+
+  const form = new formidable.IncomingForm();
+
+  form.parse(req, function(err, fields, files) {
+    const file = files.file;
+    if (!file) {
+      return next(new Error('缺少参数!'));
+    }
+    fileUtil.rename(file.path, path.join(basePath, file.name))
+      .then(filePath => fileUtil.getFileStats(filePath))
+      .then(stat => res.send(stat))
+      .catch(err => next(err));
+  });
+
+}
 
 function downLoadFile(req, res, next) {
   fileUtil
-    .getFileStats(req.params.fiename)
+    .getFileStats(req.params.filename)
     .then(stat => {
       if (stat.directory) {
         try {
@@ -134,10 +189,13 @@ function downLoadFile(req, res, next) {
 const router = new express.Router();
 
 // 安全检查
-router.param('fiename', checkPath)
-// router.use('/files/:fiename', checkPath);
+router.param('filename', checkParamsPath)
+// 安全检查
+router.use(checkQueryPath);
 
-router.use(bodyParser.urlencoded({ extended: false }));
+// router.use('/files/:filename', checkPath);
+
+// router.use(bodyParser.urlencoded({ extended: false }));
 
 // parse application/json
 router.use(bodyParser.json());
@@ -148,10 +206,16 @@ filesRoute.add('format=file', downLoadFile);
 filesRoute.add('children', getDirtoryFilesInfo);
 filesRoute.add('format=text', getFileConent);
 
-router.route('/files/:fiename')
+router.route('/files/:filename')
   .get(filesRoute.route())
   .put(saveFile)
   .post(newFile);
+
+router.route('/files/:filename/directory')
+  .post(newFolder);
+
+router.route('/files/:filename/upload')
+  .post(uploadFile);
 
 router.route('/basePath')
   .get(getBasePath);

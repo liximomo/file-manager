@@ -11,11 +11,16 @@ import {
   getSnackBar,
 } from './reducers/snackBar';
 
+import { 
+  getStatus,
+} from './reducers/status';
+
 // material ui
 import MuiThemeProvider from 'material-ui/styles/MuiThemeProvider';
 import getMuiTheme from 'material-ui/styles/getMuiTheme';
 import theme from './style/theme.js';
 import Snackbar from 'material-ui/Snackbar';
+import CircularProgress from 'material-ui/CircularProgress';
 
 class App extends Component {
   constructor(props, context) {
@@ -24,9 +29,16 @@ class App extends Component {
 
   handleRequestClose = () => this.props.actions.closeSnackBar({});
 
+  waiting() {
+    return (
+      <div className="back-overlay">
+        <CircularProgress className="pop--center"/>
+      </div>
+    );  
+  }
+
   render() {
-    console.log(this.props);
-    debugger;
+    const progress = this.props.status.progress;
     return (
       <MuiThemeProvider muiTheme={getMuiTheme(theme)} >
         <div className="App">
@@ -41,6 +53,7 @@ class App extends Component {
             autoHideDuration={2000}
             onRequestClose={this.handleRequestClose}
           />
+          {progress.show && this.waiting()}
         </div>
       </MuiThemeProvider>
     );
@@ -54,6 +67,7 @@ App.propTypes = {
 
 function mapStateToProps(state) {
   return {
+    status: getStatus(state),
     snackBar: getSnackBar(state),
   };
 }

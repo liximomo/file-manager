@@ -5,7 +5,7 @@ import { fetchFileContent, saveFile } from '../../actions/file';
 import { getFileContent } from '../../reducers/file';
 
 import { 
-  setAactionBarRMenu 
+  setAactionBar 
 } from 'client/routes/Manage/actions/actionBar';
 import IconButton from 'material-ui/IconButton';
 import DoneIcon from 'material-ui/svg-icons/action/done';
@@ -55,13 +55,13 @@ class FileEditor extends Component {
     if (this.originFileContent !== newValue) {
       // file changed
       this.curFileContent = newValue;
-      this.props.actions.setAactionBarRMenu({
-        element: this.saveBtn,
+      this.props.actions.setAactionBar({
+        iconElementRight: this.saveBtn,
       });
 
     } else {
       // 没改变，隐藏保存图标
-      this.props.actions.setAactionBarRMenu(undefined);
+      this.props.actions.setAactionBar();
     }
   };
 
@@ -70,14 +70,14 @@ class FileEditor extends Component {
       actions : {
         saveFile,
         openSnackBar,
-        setAactionBarRMenu
+        setAactionBar
       },
       fullname,
     } = this.props;
     saveFile({ filename: fullname, content: this.curFileContent })
       .then(() => {
         this.originFileContent = this.curFileContent;
-        setAactionBarRMenu(undefined);
+        setAactionBar();
         openSnackBar({
           message: '保存成功！'
         })
@@ -96,7 +96,7 @@ class FileEditor extends Component {
   }
 
   componentWillUnmount() {
-    this.props.actions.setAactionBarRMenu(undefined);
+    this.props.actions.setAactionBar();
   }
 
   render() {
@@ -152,7 +152,7 @@ function mapDispatchToProps(dispatch) {
     dispatch: dispatch,
     actions: bindActionCreators({
       fetchFileContent, saveFile,
-      setAactionBarRMenu, openSnackBar,
+      setAactionBar, openSnackBar,
     }, dispatch),
   }
 }

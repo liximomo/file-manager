@@ -1,5 +1,7 @@
 import { 
   FETCH_FILES,
+  CREATE_FOLDER,
+  UPLOAD_FILE,
 } from '../constants/FileActionTypes';
 import createReducer from 'client/reducers/createReducer';
 import { pageName } from '../index';
@@ -19,6 +21,29 @@ export default createReducer(initialState, {
     };
   },
 
+  [CREATE_FOLDER](state, action) {
+    const cur = state.curDir;
+    const newCur = {
+      ...cur,
+      children: cur.children.concat(action.payload)
+    }
+    return {
+      ...state,
+      curDir: newCur
+    };
+  },
+
+  [UPLOAD_FILE](state, action) {
+    const cur = state.curDir;
+    const newCur = {
+      ...cur,
+      children: cur.children.concat(action.payload)
+    }
+    return {
+      ...state,
+      curDir: newCur
+    };
+  },
 });
 
 export function getCurDirInfo(state) {

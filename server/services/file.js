@@ -16,6 +16,19 @@ export function isFileExist(filename) {
   });
 }
 
+/**
+ * 检测是否存在并且是 folder
+ * @param  {[type]} filename [description]
+ * @return {[type]}          [description]
+ */
+export function isFolderExist(filename) {
+  return new Promise((resolve, reject) => {
+    fs.stat(filename, function(err, stat) {
+      if (err || !stat.isDirectory()) resolve(false);
+      resolve(true);
+    });
+  });
+}
 
 /**
  * [getFileStats description]
@@ -70,6 +83,25 @@ export function getDirFileStats(dir, done) {
   });
 };
 
+export function createFolder(filename, content) {
+  return isFolderExist(filename)
+    .then(isExist => {
+      if (isExist) {
+        throw new Error('文件夹已存在！');
+      }
+
+      return new Promise((resolve, reject) => {
+        fs.mkdir(filename, function (err) {
+          console.log('createFolder', err);
+          if (err) {
+            reject(err);
+          }
+          resolve(true);
+        });
+      });
+    });
+}
+
 export function getFileContent(filename) {
   return new Promise((resolve, reject) => {
     fs.readFile(filename, (err, data) => {
@@ -88,6 +120,17 @@ export function saveFile(filename, content) {
         reject(err);
       }
       resolve(true);
+    });
+  });
+}
+
+export function rename(oldPath, newPath) {
+  return new Promise((resolve, reject) => {
+    fs.rename(oldPath, newPath, (err) => {
+      if (err) {
+        reject(err);
+      }
+      resolve(newPath);
     });
   });
 }

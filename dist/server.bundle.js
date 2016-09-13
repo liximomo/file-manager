@@ -83,9 +83,9 @@
 
 	var _file2 = _interopRequireDefault(_file);
 
-	var _errors = __webpack_require__(18);
+	var _errors = __webpack_require__(19);
 
-	var _reactServerRender = __webpack_require__(19);
+	var _reactServerRender = __webpack_require__(20);
 
 	var _reactServerRender2 = _interopRequireDefault(_reactServerRender);
 
@@ -97,11 +97,12 @@
 	app.set('view engine', 'pug');
 
 	function apiErrorHandler(err, req, res, next) {
-	  var error = { error: err.message };
-	  if (true) {
-	    return res.status(500).send('<pre>' + err.stack + '<pre>');
-	  }
-	  return res.status(500).send(error);
+	  var error = {
+	    trace: err.stack,
+	    error: true,
+	    message: err.message
+	  };
+	  return res.send(error);
 	}
 
 	// api 路由
@@ -343,11 +344,15 @@
 
 	var _express2 = _interopRequireDefault(_express);
 
-	var _file = __webpack_require__(12);
+	var _util = __webpack_require__(12);
+
+	var _util2 = _interopRequireDefault(_util);
+
+	var _file = __webpack_require__(13);
 
 	var fileUtil = _interopRequireWildcard(_file);
 
-	var _paramsRoute = __webpack_require__(14);
+	var _paramsRoute = __webpack_require__(15);
 
 	var _paramsRoute2 = _interopRequireDefault(_paramsRoute);
 
@@ -355,9 +360,9 @@
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _optimist = __webpack_require__(15);
+	var _optimist = __webpack_require__(16);
 
-	var _mime = __webpack_require__(16);
+	var _mime = __webpack_require__(17);
 
 	var _mime2 = _interopRequireDefault(_mime);
 
@@ -365,20 +370,49 @@
 
 	var _path2 = _interopRequireDefault(_path);
 
-	var _bodyParser = __webpack_require__(17);
+	var _bodyParser = __webpack_require__(18);
 
 	var _bodyParser2 = _interopRequireDefault(_bodyParser);
+
+	var _formidable = __webpack_require__(10);
+
+	var _formidable2 = _interopRequireDefault(_formidable);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	var basePath = _optimist.argv.basePath !== undefined ? _optimist.argv.basePath : _config2.default.basePath;
-	function checkPath(req, res, next, fiename) {
-	  if (fiename.indexOf(basePath) === 0 || fiename === '<default>') {
+	function checkParamsPath(req, res, next, filename) {
+	  if (filename.indexOf(basePath) === 0 || filename === '<default>') {
 	    next();
 	  } else {
-	    res.status(403).end();
+	    res.status(403).send({
+	      error: true,
+	      message: '403'
+	    });
+	  }
+	}
+
+	function checkQueryPath(req, res, next) {
+	  var filenames = [req.query, req.body].map(function (body) {
+	    return body ? body.filename : undefined;
+	  }).filter(function (param) {
+	    return param !== undefined;
+	  });
+	  var violates = [];
+	  violates = filenames.filter(function (filename) {
+	    return filename !== undefined && !(filename.indexOf(basePath) === 0 || filename === '<default>');
+	  });
+
+	  if (violates.length) {
+	    // 检查不通过
+	    res.status(403).send({
+	      error: true,
+	      message: '403'
+	    });
+	  } else {
+	    next();
 	  }
 	}
 
@@ -399,14 +433,31 @@
 	 * @return {[type]}     [description]
 	 */
 	function getDirtoryFilesInfo(req, res, next) {
-	  var fiename = req.params.fiename;
-	  if (fiename === '<default>') {
-	    fiename = basePath;
+	  var filename = req.params.filename;
+	  if (filename === '<default>') {
+	    filename = basePath;
 	  }
 
-	  fileUtil.getDirFileStats(fiename, function (err, results) {
+	  fileUtil.getDirFileStats(filename, function (err, results) {
 	    if (err) next(err);
 	    res.json(results);
+	  });
+	}
+
+	/**
+	 * 新建文件夹
+	 * @param  {[type]} req [description]
+	 * @param  {[type]} res [description]
+	 * @return {[type]}     [description]
+	 */
+	function newFolder(req, res) {
+	  var directoryPath = _path2.default.join(req.params.filename, req.query.name);
+	  fileUtil.createFolder(directoryPath).then(function () {
+	    return fileUtil.getFileStats(directoryPath);
+	  }).then(function (stat) {
+	    return res.send(stat);
+	  }).catch(function (err) {
+	    return next(err);
 	  });
 	}
 
@@ -417,7 +468,7 @@
 	 * @return {[type]}     [description]
 	 */
 	function getFileConent(req, res, next) {
-	  fileUtil.getFileStats(req.params.fiename).then(function (stat) {
+	  fileUtil.getFileStats(req.params.filename).then(function (stat) {
 	    if (stat.directory) {
 	      next(new Error('文件类型不正确'));
 	    } else {
@@ -436,7 +487,7 @@
 	}
 
 	function saveFile(req, res, next) {
-	  var filename = req.params.fiename;
+	  var filename = req.params.filename;
 	  fileUtil.isFileExist(filename).then(function (isExist) {
 	    if (!isExist) {
 	      next(new Error('文件不存在！'));
@@ -452,7 +503,7 @@
 	}
 
 	function newFile(req, res, next) {
-	  var filename = req.params.fiename;
+	  var filename = req.params.filename;
 	  fileUtil.isFileExist(filename).then(function (isExist) {
 	    if (isExist) {
 	      next(new Error('文件已存在！'));
@@ -467,8 +518,28 @@
 	  });
 	}
 
+	function uploadFile(req, res, next) {
+	  var basePath = req.params.filename;
+
+	  var form = new _formidable2.default.IncomingForm();
+
+	  form.parse(req, function (err, fields, files) {
+	    var file = files.file;
+	    if (!file) {
+	      return next(new Error('缺少参数!'));
+	    }
+	    fileUtil.rename(file.path, _path2.default.join(basePath, file.name)).then(function (filePath) {
+	      return fileUtil.getFileStats(filePath);
+	    }).then(function (stat) {
+	      return res.send(stat);
+	    }).catch(function (err) {
+	      return next(err);
+	    });
+	  });
+	}
+
 	function downLoadFile(req, res, next) {
-	  fileUtil.getFileStats(req.params.fiename).then(function (stat) {
+	  fileUtil.getFileStats(req.params.filename).then(function (stat) {
 	    if (stat.directory) {
 	      try {
 	        var zip = fileUtil.zipDirectory(stat.fullname);
@@ -489,10 +560,13 @@
 	var router = new _express2.default.Router();
 
 	// 安全检查
-	router.param('fiename', checkPath);
-	// router.use('/files/:fiename', checkPath);
+	router.param('filename', checkParamsPath);
+	// 安全检查
+	router.use(checkQueryPath);
 
-	router.use(_bodyParser2.default.urlencoded({ extended: false }));
+	// router.use('/files/:filename', checkPath);
+
+	// router.use(bodyParser.urlencoded({ extended: false }));
 
 	// parse application/json
 	router.use(_bodyParser2.default.json());
@@ -503,7 +577,11 @@
 	filesRoute.add('children', getDirtoryFilesInfo);
 	filesRoute.add('format=text', getFileConent);
 
-	router.route('/files/:fiename').get(filesRoute.route()).put(saveFile).post(newFile);
+	router.route('/files/:filename').get(filesRoute.route()).put(saveFile).post(newFile);
+
+	router.route('/files/:filename/directory').post(newFolder);
+
+	router.route('/files/:filename/upload').post(uploadFile);
 
 	router.route('/basePath').get(getBasePath);
 
@@ -518,17 +596,23 @@
 
 	  __REACT_HOT_LOADER__.register(basePath, 'basePath', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
-	  __REACT_HOT_LOADER__.register(checkPath, 'checkPath', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
+	  __REACT_HOT_LOADER__.register(checkParamsPath, 'checkParamsPath', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
+
+	  __REACT_HOT_LOADER__.register(checkQueryPath, 'checkQueryPath', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(getBasePath, 'getBasePath', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(getDirtoryFilesInfo, 'getDirtoryFilesInfo', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
+
+	  __REACT_HOT_LOADER__.register(newFolder, 'newFolder', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(getFileConent, 'getFileConent', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(saveFile, 'saveFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(newFile, 'newFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
+
+	  __REACT_HOT_LOADER__.register(uploadFile, 'uploadFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(downLoadFile, 'downLoadFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
@@ -543,6 +627,12 @@
 
 /***/ },
 /* 12 */
+/***/ function(module, exports) {
+
+	module.exports = require("util");
+
+/***/ },
+/* 13 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -554,17 +644,20 @@
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 	exports.isFileExist = isFileExist;
+	exports.isFolderExist = isFolderExist;
 	exports.getFileStats = getFileStats;
 	exports.getDirFileStats = getDirFileStats;
+	exports.createFolder = createFolder;
 	exports.getFileContent = getFileContent;
 	exports.saveFile = saveFile;
+	exports.rename = rename;
 	exports.zipDirectory = zipDirectory;
 
 	function _toArray(arr) { return Array.isArray(arr) ? arr : Array.from(arr); }
 
 	var fs = __webpack_require__(6);
 	var path = __webpack_require__(5);
-	var archiver = __webpack_require__(13);
+	var archiver = __webpack_require__(14);
 
 	/**
 	 * 检测是否存在并且是 file
@@ -575,6 +668,20 @@
 	  return new Promise(function (resolve, reject) {
 	    fs.stat(filename, function (err, stat) {
 	      if (err || !stat.isFile()) resolve(false);
+	      resolve(true);
+	    });
+	  });
+	}
+
+	/**
+	 * 检测是否存在并且是 folder
+	 * @param  {[type]} filename [description]
+	 * @return {[type]}          [description]
+	 */
+	function isFolderExist(filename) {
+	  return new Promise(function (resolve, reject) {
+	    fs.stat(filename, function (err, stat) {
+	      if (err || !stat.isDirectory()) resolve(false);
 	      resolve(true);
 	    });
 	  });
@@ -637,6 +744,24 @@
 	  });
 	};
 
+	function createFolder(filename, content) {
+	  return isFolderExist(filename).then(function (isExist) {
+	    if (isExist) {
+	      throw new Error('文件夹已存在！');
+	    }
+
+	    return new Promise(function (resolve, reject) {
+	      fs.mkdir(filename, function (err) {
+	        console.log('createFolder', err);
+	        if (err) {
+	          reject(err);
+	        }
+	        resolve(true);
+	      });
+	    });
+	  });
+	}
+
 	function getFileContent(filename) {
 	  return new Promise(function (resolve, reject) {
 	    fs.readFile(filename, function (err, data) {
@@ -655,6 +780,17 @@
 	        reject(err);
 	      }
 	      resolve(true);
+	    });
+	  });
+	}
+
+	function rename(oldPath, newPath) {
+	  return new Promise(function (resolve, reject) {
+	    fs.rename(oldPath, newPath, function (err) {
+	      if (err) {
+	        reject(err);
+	      }
+	      resolve(newPath);
 	    });
 	  });
 	}
@@ -678,13 +814,19 @@
 
 	  __REACT_HOT_LOADER__.register(isFileExist, 'isFileExist', '/Users/mymomo/workspace/yunying/server/services/file.js');
 
+	  __REACT_HOT_LOADER__.register(isFolderExist, 'isFolderExist', '/Users/mymomo/workspace/yunying/server/services/file.js');
+
 	  __REACT_HOT_LOADER__.register(getFileStats, 'getFileStats', '/Users/mymomo/workspace/yunying/server/services/file.js');
 
 	  __REACT_HOT_LOADER__.register(getDirFileStats, 'getDirFileStats', '/Users/mymomo/workspace/yunying/server/services/file.js');
 
+	  __REACT_HOT_LOADER__.register(createFolder, 'createFolder', '/Users/mymomo/workspace/yunying/server/services/file.js');
+
 	  __REACT_HOT_LOADER__.register(getFileContent, 'getFileContent', '/Users/mymomo/workspace/yunying/server/services/file.js');
 
 	  __REACT_HOT_LOADER__.register(saveFile, 'saveFile', '/Users/mymomo/workspace/yunying/server/services/file.js');
+
+	  __REACT_HOT_LOADER__.register(rename, 'rename', '/Users/mymomo/workspace/yunying/server/services/file.js');
 
 	  __REACT_HOT_LOADER__.register(zipDirectory, 'zipDirectory', '/Users/mymomo/workspace/yunying/server/services/file.js');
 	})();
@@ -692,13 +834,13 @@
 	;
 
 /***/ },
-/* 13 */
+/* 14 */
 /***/ function(module, exports) {
 
 	module.exports = require("archiver");
 
 /***/ },
-/* 14 */
+/* 15 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -730,22 +872,33 @@
 	      var _this = this;
 
 	      return function (req, res, next) {
+	        var handle = false;
 	        Object.keys(_this.handleMap).map(function (key) {
-	          var paramPattern = key.split('=');
+	          var params = key.split('&').map(function (query) {
+	            var paramPattern = key.split('=');
+	            return {
+	              name: paramPattern[0],
+	              value: paramPattern.length > 1 ? paramPattern[1] : null
+	            };
+	          });
 	          return {
-	            name: paramPattern[0],
-	            value: paramPattern.length > 1 ? paramPattern[1] : null,
+	            params: params,
 	            handle: _this.handleMap[key]
 	          };
-	        }).forEach(function (param) {
-	          var isExist = param.name in req.query;
-	          if (!isExist) return;
+	        }).forEach(function (pattern) {
+	          var noMatch = pattern.params.some(function (param) {
+	            var isExist = param.name in req.query;
+	            var value = req.query[param.name];
+	            var notEqual = param.value != null && param.value !== value;
+	            return !isExist || notEqual;
+	          });
 
-	          var value = req.query[param.name];
-	          if (param.value != null && param.value !== value) return;
-
-	          param.handle(req, res, next);
+	          if (noMatch) return;
+	          handle = true;
+	          pattern.handle(req, res, next);
 	        });
+
+	        if (!handle) next();
 	      };
 	    }
 	  }]);
@@ -770,25 +923,25 @@
 	;
 
 /***/ },
-/* 15 */
+/* 16 */
 /***/ function(module, exports) {
 
 	module.exports = require("optimist");
 
 /***/ },
-/* 16 */
+/* 17 */
 /***/ function(module, exports) {
 
 	module.exports = require("mime");
 
 /***/ },
-/* 17 */
+/* 18 */
 /***/ function(module, exports) {
 
 	module.exports = require("body-parser");
 
 /***/ },
-/* 18 */
+/* 19 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -815,7 +968,7 @@
 	;
 
 /***/ },
-/* 19 */
+/* 20 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -825,31 +978,31 @@
 	});
 	exports.default = reactServerRender;
 
-	var _store = __webpack_require__(20);
+	var _store = __webpack_require__(21);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _reactRedux = __webpack_require__(29);
+	var _reactRedux = __webpack_require__(33);
 
-	var _react = __webpack_require__(30);
+	var _react = __webpack_require__(34);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _server = __webpack_require__(31);
+	var _server = __webpack_require__(35);
 
-	var _RouterContext = __webpack_require__(32);
+	var _RouterContext = __webpack_require__(36);
 
 	var _RouterContext2 = _interopRequireDefault(_RouterContext);
 
-	var _match = __webpack_require__(33);
+	var _match = __webpack_require__(37);
 
 	var _match2 = _interopRequireDefault(_match);
 
-	var _fetchData = __webpack_require__(34);
+	var _fetchData = __webpack_require__(38);
 
 	var _fetchData2 = _interopRequireDefault(_fetchData);
 
-	var _route = __webpack_require__(35);
+	var _route = __webpack_require__(39);
 
 	var _route2 = _interopRequireDefault(_route);
 
@@ -911,7 +1064,7 @@
 	;
 
 /***/ },
-/* 20 */
+/* 21 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -919,7 +1072,7 @@
 	if (false) {
 	  module.exports = require('./configureStore.prod');
 	} else {
-	  module.exports = __webpack_require__(21);
+	  module.exports = __webpack_require__(22);
 	}
 	;
 
@@ -932,7 +1085,7 @@
 	;
 
 /***/ },
-/* 21 */
+/* 22 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -943,21 +1096,21 @@
 	exports.default = configureStore;
 	exports.injectAsyncReducer = injectAsyncReducer;
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _reduxThunk = __webpack_require__(23);
+	var _reduxThunk = __webpack_require__(24);
 
 	var _reduxThunk2 = _interopRequireDefault(_reduxThunk);
 
-	var _api = __webpack_require__(24);
+	var _api = __webpack_require__(25);
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _history = __webpack_require__(25);
+	var _history = __webpack_require__(26);
 
 	var _history2 = _interopRequireDefault(_history);
 
-	var _reducers = __webpack_require__(27);
+	var _reducers = __webpack_require__(28);
 
 	var _reducers2 = _interopRequireDefault(_reducers);
 
@@ -1006,19 +1159,19 @@
 	;
 
 /***/ },
-/* 22 */
+/* 23 */
 /***/ function(module, exports) {
 
 	module.exports = require("redux");
 
 /***/ },
-/* 23 */
+/* 24 */
 /***/ function(module, exports) {
 
 	module.exports = require("redux-thunk");
 
 /***/ },
-/* 24 */
+/* 25 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -1089,9 +1242,9 @@
 	      }
 
 	      return fulfillPromise(action.payload).then(function (response) {
-	        // if (response.code !== 200) {
-	        //   return next(actionWith({ payload: response, fail: true }, pendingMeta));
-	        // }
+	        if (response.error) {
+	          return next(actionWith({ payload: response, fail: true }, pendingMeta));
+	        }
 
 	        return next(actionWith({ payload: response }, pendingMeta));
 	      }, function (error) {
@@ -1125,7 +1278,7 @@
 	;
 
 /***/ },
-/* 25 */
+/* 26 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1133,7 +1286,7 @@
 	if (false) {
 	  module.exports = require('react-router/lib/browserHistory');
 	} else {
-	  module.exports = __webpack_require__(26);
+	  module.exports = __webpack_require__(27);
 	}
 	;
 
@@ -1146,13 +1299,13 @@
 	;
 
 /***/ },
-/* 26 */
+/* 27 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-router/lib/hashHistory");
 
 /***/ },
-/* 27 */
+/* 28 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1165,15 +1318,19 @@
 
 	exports.default = createReducer;
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _snackBar = __webpack_require__(87);
+	var _snackBar = __webpack_require__(29);
 
 	var _snackBar2 = _interopRequireDefault(_snackBar);
 
-	var _pending = __webpack_require__(28);
+	var _pending = __webpack_require__(32);
 
 	var _pending2 = _interopRequireDefault(_pending);
+
+	var _status = __webpack_require__(105);
+
+	var _status2 = _interopRequireDefault(_status);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -1181,6 +1338,7 @@
 	  var asyncReducers = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
 
 	  return (0, _redux.combineReducers)(_extends({
+	    status: _status2.default,
 	    snackBar: _snackBar2.default,
 	    pending: _pending2.default
 	  }, asyncReducers));
@@ -1198,7 +1356,145 @@
 	;
 
 /***/ },
-/* 28 */
+/* 29 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _createReducer;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	exports.getSnackBar = getSnackBar;
+
+	var _SnackBarActionTypes = __webpack_require__(30);
+
+	var _createReducer2 = __webpack_require__(31);
+
+	var _createReducer3 = _interopRequireDefault(_createReducer2);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+	var initialState = {
+	  open: false,
+	  message: ''
+	};
+
+	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _SnackBarActionTypes.OPEN_SNACKBAR, function (state, action) {
+	  return _extends({}, action.payload, {
+	    open: true
+	  });
+	}), _defineProperty(_createReducer, _SnackBarActionTypes.CLOSE_SNACKBAR, function (state, action) {
+	  return _extends({}, action.payload, {
+	    open: false
+	  });
+	}), _createReducer));
+
+	exports.default = _default;
+	function getSnackBar(state) {
+	  return state.snackBar;
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/reducers/snackBar.js');
+
+	  __REACT_HOT_LOADER__.register(getSnackBar, 'getSnackBar', '/Users/mymomo/workspace/yunying/client/reducers/snackBar.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/reducers/snackBar.js');
+	})();
+
+	;
+
+/***/ },
+/* 30 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	var OPEN_SNACKBAR = exports.OPEN_SNACKBAR = 'OPEN_SNACKBAR';
+	var CLOSE_SNACKBAR = exports.CLOSE_SNACKBAR = 'CLOSE_SNACKBAR';
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(OPEN_SNACKBAR, 'OPEN_SNACKBAR', '/Users/mymomo/workspace/yunying/client/constants/SnackBarActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(CLOSE_SNACKBAR, 'CLOSE_SNACKBAR', '/Users/mymomo/workspace/yunying/client/constants/SnackBarActionTypes.js');
+	})();
+
+	;
+
+/***/ },
+/* 31 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	exports.default = createReducer;
+	function createReducer(initialState, handlers) {
+	  return function reducer() {
+	    var state = arguments.length <= 0 || arguments[0] === undefined ? initialState : arguments[0];
+	    var action = arguments[1];
+
+	    if (handlers.hasOwnProperty(action.type)) {
+	      if (action.error) {
+	        if (true) {
+	          console.log('action error:', action);
+	        }
+	        return _extends({}, state, {
+	          error: action.payload
+	        });
+	      }
+	      if (action.fail) {
+	        if (true) {
+	          console.log('action fail:', action);
+	        }
+	        return _extends({}, state, {
+	          fail: action.payload
+	        });
+	      }
+	      return handlers[action.type](state, action);
+	    }
+	    return state;
+	  };
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(createReducer, 'createReducer', '/Users/mymomo/workspace/yunying/client/reducers/createReducer.js');
+	})();
+
+	;
+
+/***/ },
+/* 32 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1208,7 +1504,7 @@
 	});
 	exports.default = pending;
 
-	var _api = __webpack_require__(24);
+	var _api = __webpack_require__(25);
 
 	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
@@ -1235,37 +1531,37 @@
 	;
 
 /***/ },
-/* 29 */
+/* 33 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-redux");
 
 /***/ },
-/* 30 */
+/* 34 */
 /***/ function(module, exports) {
 
 	module.exports = require("react");
 
 /***/ },
-/* 31 */
+/* 35 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-dom/server");
 
 /***/ },
-/* 32 */
+/* 36 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-router/lib/RouterContext");
 
 /***/ },
-/* 33 */
+/* 37 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-router/lib/match");
 
 /***/ },
-/* 34 */
+/* 38 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -1296,7 +1592,7 @@
 	;
 
 /***/ },
-/* 35 */
+/* 39 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1306,11 +1602,11 @@
 	});
 	exports.fullpath = exports.pageName = undefined;
 
-	var _App = __webpack_require__(36);
+	var _App = __webpack_require__(40);
 
 	var _App2 = _interopRequireDefault(_App);
 
-	var _Manage = __webpack_require__(44);
+	var _Manage = __webpack_require__(51);
 
 	var _Manage2 = _interopRequireDefault(_Manage);
 
@@ -1354,7 +1650,7 @@
 	;
 
 /***/ },
-/* 36 */
+/* 40 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1365,37 +1661,43 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _index = __webpack_require__(37);
+	var _index = __webpack_require__(41);
 
 	var _index2 = _interopRequireDefault(_index);
 
-	var _react = __webpack_require__(30);
+	var _react = __webpack_require__(34);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(29);
+	var _reactRedux = __webpack_require__(33);
 
-	var _snackBar = __webpack_require__(89);
+	var _snackBar = __webpack_require__(42);
 
-	var _snackBar2 = __webpack_require__(87);
+	var _snackBar2 = __webpack_require__(29);
 
-	var _MuiThemeProvider = __webpack_require__(38);
+	var _status = __webpack_require__(105);
+
+	var _MuiThemeProvider = __webpack_require__(44);
 
 	var _MuiThemeProvider2 = _interopRequireDefault(_MuiThemeProvider);
 
-	var _getMuiTheme = __webpack_require__(39);
+	var _getMuiTheme = __webpack_require__(45);
 
 	var _getMuiTheme2 = _interopRequireDefault(_getMuiTheme);
 
-	var _theme = __webpack_require__(40);
+	var _theme = __webpack_require__(46);
 
 	var _theme2 = _interopRequireDefault(_theme);
 
-	var _Snackbar = __webpack_require__(86);
+	var _Snackbar = __webpack_require__(50);
 
 	var _Snackbar2 = _interopRequireDefault(_Snackbar);
+
+	var _CircularProgress = __webpack_require__(104);
+
+	var _CircularProgress2 = _interopRequireDefault(_CircularProgress);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -1424,10 +1726,18 @@
 	  }
 
 	  _createClass(App, [{
+	    key: 'waiting',
+	    value: function waiting() {
+	      return _react2.default.createElement(
+	        'div',
+	        { className: 'back-overlay' },
+	        _react2.default.createElement(_CircularProgress2.default, { className: 'pop--center' })
+	      );
+	    }
+	  }, {
 	    key: 'render',
 	    value: function render() {
-	      console.log(this.props);
-	      debugger;
+	      var progress = this.props.status.progress;
 	      return _react2.default.createElement(
 	        _MuiThemeProvider2.default,
 	        { muiTheme: (0, _getMuiTheme2.default)(_theme2.default) },
@@ -1448,7 +1758,8 @@
 	            message: this.props.snackBar.message,
 	            autoHideDuration: 2000,
 	            onRequestClose: this.handleRequestClose
-	          })
+	          }),
+	          progress.show && this.waiting()
 	        )
 	      );
 	    }
@@ -1464,6 +1775,7 @@
 
 	function mapStateToProps(state) {
 	  return {
+	    status: (0, _status.getStatus)(state),
 	    snackBar: (0, _snackBar2.getSnackBar)(state)
 	  };
 	}
@@ -1496,27 +1808,127 @@
 	;
 
 /***/ },
-/* 37 */
+/* 41 */
 /***/ function(module, exports) {
 
 	module.exports = {
-		"wrapper": "index_wrapper_1IJ"
+		"wrapper": "client-style-index_wrapper_1IJ"
 	};
 
 /***/ },
-/* 38 */
+/* 42 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	exports.closeSnackBar = exports.openSnackBar = undefined;
+
+	var _SnackBarActionTypes = __webpack_require__(30);
+
+	var _createAction = __webpack_require__(43);
+
+	var _createAction2 = _interopRequireDefault(_createAction);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var openSnackBar = exports.openSnackBar = (0, _createAction2.default)(_SnackBarActionTypes.OPEN_SNACKBAR, function (props) {
+	  return props;
+	});
+
+	var closeSnackBar = exports.closeSnackBar = (0, _createAction2.default)(_SnackBarActionTypes.CLOSE_SNACKBAR, function (props) {
+	  return props;
+	});
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(openSnackBar, 'openSnackBar', '/Users/mymomo/workspace/yunying/client/actions/snackBar.js');
+
+	  __REACT_HOT_LOADER__.register(closeSnackBar, 'closeSnackBar', '/Users/mymomo/workspace/yunying/client/actions/snackBar.js');
+	})();
+
+	;
+
+/***/ },
+/* 43 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	exports.unFlat = unFlat;
+	exports.default = createAction;
+	function unFlat() {
+	  for (var _len = arguments.length, argNames = Array(_len), _key = 0; _key < _len; _key++) {
+	    argNames[_key] = arguments[_key];
+	  }
+
+	  return function () {
+	    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+	      args[_key2] = arguments[_key2];
+	    }
+
+	    var action = {};
+	    argNames.forEach(function (arg, index) {
+	      action[argNames[index]] = args[index];
+	    });
+	    return action;
+	  };
+	}
+
+	function createAction(type) {
+	  var payloadCreator = arguments.length <= 1 || arguments[1] === undefined ? function (a) {
+	    return a;
+	  } : arguments[1];
+	  var metaCreator = arguments[2];
+
+	  return function () {
+	    var action = {
+	      type: type,
+	      payload: payloadCreator.apply(undefined, arguments)
+	    };
+	    if (typeof metaCreator === 'function') {
+	      action.meta = metaCreator.apply(undefined, arguments);
+	    }
+	    return action;
+	  };
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(unFlat, 'unFlat', '/Users/mymomo/workspace/yunying/client/actions/createAction.js');
+
+	  __REACT_HOT_LOADER__.register(createAction, 'createAction', '/Users/mymomo/workspace/yunying/client/actions/createAction.js');
+	})();
+
+	;
+
+/***/ },
+/* 44 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/MuiThemeProvider");
 
 /***/ },
-/* 39 */
+/* 45 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/getMuiTheme");
 
 /***/ },
-/* 40 */
+/* 46 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1525,11 +1937,11 @@
 	  value: true
 	});
 
-	var _colors = __webpack_require__(41);
+	var _colors = __webpack_require__(47);
 
-	var _colorManipulator = __webpack_require__(42);
+	var _colorManipulator = __webpack_require__(48);
 
-	var _spacing = __webpack_require__(43);
+	var _spacing = __webpack_require__(49);
 
 	var _spacing2 = _interopRequireDefault(_spacing);
 
@@ -1583,25 +1995,31 @@
 	;
 
 /***/ },
-/* 41 */
+/* 47 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/colors");
 
 /***/ },
-/* 42 */
+/* 48 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/utils/colorManipulator");
 
 /***/ },
-/* 43 */
+/* 49 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/spacing");
 
 /***/ },
-/* 44 */
+/* 50 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/Snackbar");
+
+/***/ },
+/* 51 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1611,17 +2029,17 @@
 	});
 	exports.fullpath = exports.pageName = undefined;
 
-	var _Files = __webpack_require__(45);
+	var _Files = __webpack_require__(52);
 
 	var _Files2 = _interopRequireDefault(_Files);
 
-	var _Edit = __webpack_require__(65);
+	var _Edit = __webpack_require__(80);
 
 	var _Edit2 = _interopRequireDefault(_Edit);
 
-	var _store = __webpack_require__(20);
+	var _store = __webpack_require__(21);
 
-	var _route = __webpack_require__(35);
+	var _route = __webpack_require__(39);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -1633,11 +2051,11 @@
 	  return {
 	    path: path,
 	    getComponent: function getComponent(nextState, cb) {
-	      var reducers = __webpack_require__(82).default;
+	      var reducers = __webpack_require__(95).default;
 	      (0, _store.injectAsyncReducer)(store, pageName, reducers);
 
 	      if (true) {
-	        cb(null, __webpack_require__(77).default);
+	        cb(null, __webpack_require__(99).default);
 	      } else {
 	        require.ensure([], function (require) {
 	          cb(null, require('./views/Manage').default);
@@ -1674,7 +2092,7 @@
 	;
 
 /***/ },
-/* 45 */
+/* 52 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1684,9 +2102,9 @@
 	});
 	exports.fullpath = exports.pageName = undefined;
 
-	var _store = __webpack_require__(20);
+	var _store = __webpack_require__(21);
 
-	var _index = __webpack_require__(44);
+	var _index = __webpack_require__(51);
 
 	var pageName = 'files';
 	var path = 'files';
@@ -1696,11 +2114,11 @@
 	  return {
 	    path: path,
 	    getComponent: function getComponent(nextState, cb) {
-	      var reducers = __webpack_require__(46).default;
+	      var reducers = __webpack_require__(53).default;
 	      (0, _store.injectAsyncReducer)(store, pageName, reducers);
 
 	      if (true) {
-	        cb(null, __webpack_require__(50).default);
+	        cb(null, __webpack_require__(56).default);
 	      } else {
 	        require.ensure([], function (require) {
 	          cb(null, require('./views/FileListView').default);
@@ -1735,7 +2153,7 @@
 	;
 
 /***/ },
-/* 46 */
+/* 53 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1744,9 +2162,9 @@
 	  value: true
 	});
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _files = __webpack_require__(47);
+	var _files = __webpack_require__(54);
 
 	var _files2 = _interopRequireDefault(_files);
 
@@ -1773,7 +2191,7 @@
 	;
 
 /***/ },
-/* 47 */
+/* 54 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1782,17 +2200,19 @@
 	  value: true
 	});
 
+	var _createReducer;
+
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 	exports.getCurDirInfo = getCurDirInfo;
 
-	var _FileActionTypes = __webpack_require__(48);
+	var _FileActionTypes = __webpack_require__(55);
 
-	var _createReducer2 = __webpack_require__(49);
+	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(45);
+	var _index = __webpack_require__(52);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -1805,11 +2225,27 @@
 	  }
 	};
 
-	var _default = (0, _createReducer3.default)(initialState, _defineProperty({}, _FileActionTypes.FETCH_FILES, function (state, action) {
+	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _FileActionTypes.FETCH_FILES, function (state, action) {
 	  return _extends({}, state, {
 	    curDir: action.payload
 	  });
-	}));
+	}), _defineProperty(_createReducer, _FileActionTypes.CREATE_FOLDER, function (state, action) {
+	  var cur = state.curDir;
+	  var newCur = _extends({}, cur, {
+	    children: cur.children.concat(action.payload)
+	  });
+	  return _extends({}, state, {
+	    curDir: newCur
+	  });
+	}), _defineProperty(_createReducer, _FileActionTypes.UPLOAD_FILE, function (state, action) {
+	  var cur = state.curDir;
+	  var newCur = _extends({}, cur, {
+	    children: cur.children.concat(action.payload)
+	  });
+	  return _extends({}, state, {
+	    curDir: newCur
+	  });
+	}), _createReducer));
 
 	exports.default = _default;
 	function getCurDirInfo(state) {
@@ -1832,7 +2268,7 @@
 	;
 
 /***/ },
-/* 48 */
+/* 55 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -1841,6 +2277,8 @@
 	  value: true
 	});
 	var FETCH_FILES = exports.FETCH_FILES = 'FETCH_FILES';
+	var CREATE_FOLDER = exports.CREATE_FOLDER = 'CREATE_FOLDER';
+	var UPLOAD_FILE = exports.UPLOAD_FILE = 'UPLOAD_FILE';
 	;
 
 	(function () {
@@ -1849,57 +2287,16 @@
 	  }
 
 	  __REACT_HOT_LOADER__.register(FETCH_FILES, 'FETCH_FILES', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(CREATE_FOLDER, 'CREATE_FOLDER', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(UPLOAD_FILE, 'UPLOAD_FILE', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
 	})();
 
 	;
 
 /***/ },
-/* 49 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	exports.default = createReducer;
-	function createReducer(initialState, handlers) {
-	  return function reducer() {
-	    var state = arguments.length <= 0 || arguments[0] === undefined ? initialState : arguments[0];
-	    var action = arguments[1];
-
-	    if (handlers.hasOwnProperty(action.type)) {
-	      if (action.error) {
-	        if (true) {
-	          console.log('action error:', action);
-	        }
-	        return state.error = action.payload;
-	      }
-	      if (action.fail) {
-	        if (true) {
-	          console.log('action fail:', action);
-	        }
-	        return state.fail = action.payload;
-	      }
-	      return handlers[action.type](state, action);
-	    }
-	    return state;
-	  };
-	}
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(createReducer, 'createReducer', '/Users/mymomo/workspace/yunying/client/reducers/createReducer.js');
-	})();
-
-	;
-
-/***/ },
-/* 50 */
+/* 56 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1910,61 +2307,73 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _index = __webpack_require__(51);
+	var _index = __webpack_require__(57);
 
 	var _index2 = _interopRequireDefault(_index);
 
-	var _react = __webpack_require__(30);
+	var _react = __webpack_require__(34);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(29);
+	var _reactRedux = __webpack_require__(33);
 
-	var _fetch = __webpack_require__(52);
+	var _fetch = __webpack_require__(58);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
-	var _files = __webpack_require__(55);
+	var _files = __webpack_require__(61);
 
-	var _files2 = __webpack_require__(47);
+	var _files2 = __webpack_require__(54);
 
-	var _FileListItem = __webpack_require__(57);
+	var _FileListItem = __webpack_require__(62);
 
 	var _FileListItem2 = _interopRequireDefault(_FileListItem);
 
-	var _List = __webpack_require__(62);
+	var _List = __webpack_require__(67);
 
-	var _FloatingActionButton = __webpack_require__(63);
+	var _Fab = __webpack_require__(68);
+
+	var _Fab2 = _interopRequireDefault(_Fab);
+
+	var _FloatingActionButton = __webpack_require__(71);
 
 	var _FloatingActionButton2 = _interopRequireDefault(_FloatingActionButton);
 
-	var _IconButton = __webpack_require__(58);
+	var _IconButton = __webpack_require__(63);
 
 	var _IconButton2 = _interopRequireDefault(_IconButton);
 
-	var _moreVert = __webpack_require__(59);
+	var _moreVert = __webpack_require__(64);
 
 	var _moreVert2 = _interopRequireDefault(_moreVert);
 
-	var _add = __webpack_require__(64);
+	var _add = __webpack_require__(72);
 
 	var _add2 = _interopRequireDefault(_add);
 
-	var _IconMenu = __webpack_require__(60);
+	var _createNewFolder = __webpack_require__(74);
+
+	var _createNewFolder2 = _interopRequireDefault(_createNewFolder);
+
+	var _fileUpload = __webpack_require__(75);
+
+	var _fileUpload2 = _interopRequireDefault(_fileUpload);
+
+	var _IconMenu = __webpack_require__(65);
 
 	var _IconMenu2 = _interopRequireDefault(_IconMenu);
 
-	var _MenuItem = __webpack_require__(61);
+	var _MenuItem = __webpack_require__(66);
 
 	var _MenuItem2 = _interopRequireDefault(_MenuItem);
 
-	var _colors = __webpack_require__(41);
+	var _colors = __webpack_require__(47);
 
-	var _url = __webpack_require__(54);
+	var _url = __webpack_require__(60);
 
-	var _history = __webpack_require__(25);
+	var _history = __webpack_require__(26);
 
 	var _history2 = _interopRequireDefault(_history);
 
@@ -2054,12 +2463,6 @@
 
 	  _createClass(FileListView, [{
 	    key: 'componentDidMount',
-
-
-	    // shouldComponentUpdate(nextProps) {
-	    //   return this.props.curDir !== nextProps.curDir;
-	    // }
-
 	    value: function componentDidMount() {
 	      var _this2 = this;
 
@@ -2124,18 +2527,7 @@
 	          fileItems
 	        ),
 	        downloadFileAddress && _react2.default.createElement('iframe', { src: downloadFileAddress, style: { display: 'none' } }),
-	        _react2.default.createElement(
-	          _FloatingActionButton2.default,
-	          {
-	            style: {
-	              background: _colors.red500,
-	              position: 'fixed',
-	              bottom: 23,
-	              right: 23
-	            }
-	          },
-	          _react2.default.createElement(_add2.default, null)
-	        )
+	        _react2.default.createElement(_Fab2.default, null)
 	      );
 	    }
 	  }]);
@@ -2207,13 +2599,13 @@
 	;
 
 /***/ },
-/* 51 */
+/* 57 */
 /***/ function(module, exports) {
 
 	
 
 /***/ },
-/* 52 */
+/* 58 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2225,9 +2617,9 @@
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	__webpack_require__(53);
+	__webpack_require__(59);
 
-	var _url = __webpack_require__(54);
+	var _url = __webpack_require__(60);
 
 	var baseurl = (0, _url.getBase)();
 
@@ -2280,13 +2672,13 @@
 	;
 
 /***/ },
-/* 53 */
+/* 59 */
 /***/ function(module, exports) {
 
 	module.exports = require("isomorphic-fetch");
 
 /***/ },
-/* 54 */
+/* 60 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2334,7 +2726,7 @@
 	;
 
 /***/ },
-/* 55 */
+/* 61 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2342,23 +2734,58 @@
 	Object.defineProperty(exports, "__esModule", {
 	  value: true
 	});
-	exports.fetchDirFiles = undefined;
+	exports.uploadFile = exports._uploadFile = exports.createFolder = exports._createFolder = exports.fetchDirFiles = undefined;
 
-	var _FileActionTypes = __webpack_require__(48);
+	var _FileActionTypes = __webpack_require__(55);
 
-	var _createAction = __webpack_require__(56);
+	var _createAction = __webpack_require__(43);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
-	var _fetch = __webpack_require__(52);
+	var _fetch = __webpack_require__(58);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
+
+	var _files = __webpack_require__(54);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	var fetchDirFiles = exports.fetchDirFiles = (0, _createAction2.default)(_FileActionTypes.FETCH_FILES, function (filename) {
 	  return (0, _fetch2.default)('files/' + encodeURIComponent(filename) + '?children');
 	});
+
+	var _createFolder = exports._createFolder = (0, _createAction2.default)(_FileActionTypes.CREATE_FOLDER, function (parent, name) {
+	  return (0, _fetch2.default)('files/' + encodeURIComponent(parent) + '/directory?name=' + name, {
+	    method: 'POST'
+	  });
+	});
+
+	var createFolder = exports.createFolder = function createFolder(name) {
+	  return function (dispatch, getState) {
+	    var dir = (0, _files.getCurDirInfo)(getState());
+
+	    return dispatch(_createFolder(dir.fullname, name));
+	  };
+	};
+
+	var _uploadFile = exports._uploadFile = (0, _createAction2.default)(_FileActionTypes.UPLOAD_FILE, function (parent, file) {
+	  var formData = new FormData();
+	  formData.append('file', file);
+
+	  return (0, _fetch2.default)('files/' + encodeURIComponent(parent) + '/upload', {
+	    method: 'POST',
+	    headers: {},
+	    body: formData
+	  });
+	});
+
+	var uploadFile = exports.uploadFile = function uploadFile(name) {
+	  return function (dispatch, getState) {
+	    var dir = (0, _files.getCurDirInfo)(getState());
+
+	    return dispatch(_uploadFile(dir.fullname, name));
+	  };
+	};
 	;
 
 	(function () {
@@ -2367,72 +2794,20 @@
 	  }
 
 	  __REACT_HOT_LOADER__.register(fetchDirFiles, 'fetchDirFiles', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(_createFolder, '_createFolder', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(createFolder, 'createFolder', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(_uploadFile, '_uploadFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(uploadFile, 'uploadFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
 	})();
 
 	;
 
 /***/ },
-/* 56 */
-/***/ function(module, exports) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	exports.unFlat = unFlat;
-	exports.default = createAction;
-	function unFlat() {
-	  for (var _len = arguments.length, argNames = Array(_len), _key = 0; _key < _len; _key++) {
-	    argNames[_key] = arguments[_key];
-	  }
-
-	  return function () {
-	    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-	      args[_key2] = arguments[_key2];
-	    }
-
-	    var action = {};
-	    argNames.forEach(function (arg, index) {
-	      action[argNames[index]] = args[index];
-	    });
-	    return action;
-	  };
-	}
-
-	function createAction(type) {
-	  var payloadCreator = arguments.length <= 1 || arguments[1] === undefined ? function (a) {
-	    return a;
-	  } : arguments[1];
-	  var metaCreator = arguments[2];
-
-	  return function () {
-	    var action = {
-	      type: type,
-	      payload: payloadCreator.apply(undefined, arguments)
-	    };
-	    if (typeof metaCreator === 'function') {
-	      action.meta = metaCreator.apply(undefined, arguments);
-	    }
-	    return action;
-	  };
-	}
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(unFlat, 'unFlat', '/Users/mymomo/workspace/yunying/client/actions/createAction.js');
-
-	  __REACT_HOT_LOADER__.register(createAction, 'createAction', '/Users/mymomo/workspace/yunying/client/actions/createAction.js');
-	})();
-
-	;
-
-/***/ },
-/* 57 */
+/* 62 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2443,29 +2818,29 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _react = __webpack_require__(30);
+	var _react = __webpack_require__(34);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _IconButton = __webpack_require__(58);
+	var _IconButton = __webpack_require__(63);
 
 	var _IconButton2 = _interopRequireDefault(_IconButton);
 
-	var _moreVert = __webpack_require__(59);
+	var _moreVert = __webpack_require__(64);
 
 	var _moreVert2 = _interopRequireDefault(_moreVert);
 
-	var _IconMenu = __webpack_require__(60);
+	var _IconMenu = __webpack_require__(65);
 
 	var _IconMenu2 = _interopRequireDefault(_IconMenu);
 
-	var _MenuItem = __webpack_require__(61);
+	var _MenuItem = __webpack_require__(66);
 
 	var _MenuItem2 = _interopRequireDefault(_MenuItem);
 
-	var _List = __webpack_require__(62);
+	var _List = __webpack_require__(67);
 
-	var _colors = __webpack_require__(41);
+	var _colors = __webpack_require__(47);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2557,49 +2932,528 @@
 	;
 
 /***/ },
-/* 58 */
+/* 63 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/IconButton");
 
 /***/ },
-/* 59 */
+/* 64 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/navigation/more-vert");
 
 /***/ },
-/* 60 */
+/* 65 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/IconMenu");
 
 /***/ },
-/* 61 */
+/* 66 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/MenuItem");
 
 /***/ },
-/* 62 */
+/* 67 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/List");
 
 /***/ },
-/* 63 */
+/* 68 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+	var _index = __webpack_require__(69);
+
+	var _index2 = _interopRequireDefault(_index);
+
+	var _react = __webpack_require__(34);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactDom = __webpack_require__(70);
+
+	var _redux = __webpack_require__(23);
+
+	var _reactRedux = __webpack_require__(33);
+
+	var _FloatingActionButton = __webpack_require__(71);
+
+	var _FloatingActionButton2 = _interopRequireDefault(_FloatingActionButton);
+
+	var _add = __webpack_require__(72);
+
+	var _add2 = _interopRequireDefault(_add);
+
+	var _clear = __webpack_require__(73);
+
+	var _clear2 = _interopRequireDefault(_clear);
+
+	var _createNewFolder = __webpack_require__(74);
+
+	var _createNewFolder2 = _interopRequireDefault(_createNewFolder);
+
+	var _fileUpload = __webpack_require__(75);
+
+	var _fileUpload2 = _interopRequireDefault(_fileUpload);
+
+	var _colors = __webpack_require__(47);
+
+	var _snackBar = __webpack_require__(42);
+
+	var _status = __webpack_require__(107);
+
+	var _NewFolderDialog = __webpack_require__(76);
+
+	var _NewFolderDialog2 = _interopRequireDefault(_NewFolderDialog);
+
+	var _files = __webpack_require__(61);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var Fab = function (_Component) {
+	  _inherits(Fab, _Component);
+
+	  function Fab(props, context) {
+	    _classCallCheck(this, Fab);
+
+	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Fab).call(this, props, context));
+
+	    _this.toggleFab = function () {
+	      _this.setState({
+	        fabExpand: !_this.state.fabExpand
+	      });
+	    };
+
+	    _this.triggerUploadFile = function () {
+	      _this.uploader.click();
+	    };
+
+	    _this.doUploadFile = function (file) {
+	      var _this$props$actions = _this.props.actions;
+	      var uploadFile = _this$props$actions.uploadFile;
+	      var openSnackBar = _this$props$actions.openSnackBar;
+	      var startProgress = _this$props$actions.startProgress;
+	      var endProgress = _this$props$actions.endProgress;
+
+
+	      startProgress();
+	      _this.setState({
+	        fabExpand: false
+	      });
+	      uploadFile(file).then(_this.handleActionResponse(function () {
+	        endProgress();
+	        openSnackBar({
+	          message: '上传成功！'
+	        });
+	      }));
+	    };
+
+	    _this.createFolder = function () {
+	      _this.setState({
+	        isCreatingFolder: true
+	      });
+	    };
+
+	    _this.handleCancelCreateFolder = function () {
+	      _this.setState({
+	        isCreatingFolder: false
+	      });
+	    };
+
+	    _this.handleCreateFolder = function (name) {
+	      var _this$props$actions2 = _this.props.actions;
+	      var createFolder = _this$props$actions2.createFolder;
+	      var openSnackBar = _this$props$actions2.openSnackBar;
+
+	      createFolder(name).then(_this.handleActionResponse(function () {
+	        _this.setState({
+	          isCreatingFolder: false,
+	          fabExpand: false
+	        });
+	        openSnackBar({
+	          message: '创建成功！'
+	        });
+	      }));
+	    };
+
+	    _this.handleActionResponse = function (cb) {
+	      return function (action) {
+	        if (action.fail) {
+	          (0, _snackBar.openSnackBar)({
+	            message: action.payload.message
+	          });
+	          return;
+	        }
+
+	        if (action.error) {
+	          (0, _snackBar.openSnackBar)({
+	            message: '服务器错误！'
+	          });
+	          return;
+	        }
+	        cb && cb();
+	      };
+	    };
+
+	    _this.state = {
+	      fabExpand: false,
+	      isCreatingFolder: false
+	    };
+
+	    _this.actions = [{ tooltip: '新建文件夹', icon: _react2.default.createElement(_createNewFolder2.default, null), action: _this.createFolder, id: 'folder' }, { tooltip: '上传文件', icon: _react2.default.createElement(_fileUpload2.default, null), action: _this.triggerUploadFile, id: 'file' }];
+	    return _this;
+	  }
+
+	  _createClass(Fab, [{
+	    key: 'getFabActions',
+	    value: function getFabActions() {
+	      var _this2 = this;
+
+	      var primaryColor = this.context.muiTheme.palette.primary1Color;
+	      return this.actions.map(function (action, index) {
+	        var event = {};
+
+	        var delay = 30 * (_this2.state.fabExpand ? _this2.actions.length - index : index);
+
+	        if (action.action) {
+	          event.onTouchTap = action.action;
+	        }
+
+	        return _react2.default.createElement(
+	          'div',
+	          { className: _index2.default.action, style: { opacity: _this2.state.fabExpand ? 1 : 0.01 }, key: action.id },
+	          _react2.default.createElement(
+	            'div',
+	            { className: _index2.default.tooltip, style: { transitionDelay: delay + 'ms' } },
+	            action.tooltip
+	          ),
+	          _react2.default.createElement(
+	            'div',
+	            _extends({ className: _index2.default.button, style: { transitionDelay: delay + 'ms' } }, event),
+	            _react2.default.createElement(
+	              _FloatingActionButton2.default,
+	              { mini: true, backgroundColor: '#fff', iconStyle: { fill: primaryColor } },
+	              action.icon
+	            )
+	          )
+	        );
+	      });
+	    }
+	  }, {
+	    key: 'componentDidMount',
+	    value: function componentDidMount() {
+	      var _this3 = this;
+
+	      this.uploader = window.document.createElement('input');
+	      this.uploader.type = 'file';
+	      this.uploader.addEventListener('change', function () {
+	        _this3.doUploadFile(_this3.uploader.files[0]);
+	        _this3.uploader.value = null;
+	        return false;
+	      }, false);
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      return _react2.default.createElement(
+	        'div',
+	        { className: this.state.fabExpand ? _index2.default.opened : _index2.default.closed },
+	        _react2.default.createElement('div', { className: _index2.default.cover, style: { height: this.state.fabExpand ? '100vh' : 0 }, onTouchTap: this.toggleFab }),
+	        _react2.default.createElement(
+	          'div',
+	          {
+	            className: _index2.default.container,
+	            style: {
+	              position: 'fixed',
+	              bottom: 23,
+	              right: 23
+	            }
+	          },
+	          _react2.default.createElement(
+	            'div',
+	            { className: _index2.default.actions },
+	            this.getFabActions()
+	          ),
+	          _react2.default.createElement(
+	            _FloatingActionButton2.default,
+	            { onTouchTap: this.toggleFab, className: _index2.default.main },
+	            _react2.default.createElement(_add2.default, null)
+	          )
+	        ),
+	        _react2.default.createElement(_NewFolderDialog2.default, {
+	          open: this.state.isCreatingFolder,
+	          onCancel: this.handleCancelCreateFolder,
+	          onSubmit: this.handleCreateFolder
+	        })
+	      );
+	    }
+	  }]);
+
+	  return Fab;
+	}(_react.Component);
+
+	Fab.propTypes = {
+	  location: _react.PropTypes.object, // react-router 注入属性
+	  children: _react.PropTypes.node
+	};
+
+	Fab.contextTypes = {
+	  muiTheme: _react.PropTypes.object.isRequired
+	};
+
+	function mapStateToProps(state) {
+	  return {};
+	}
+
+	function mapDispatchToProps(dispatch) {
+	  return {
+	    dispatch: dispatch,
+	    actions: (0, _redux.bindActionCreators)({
+	      createFolder: _files.createFolder,
+	      uploadFile: _files.uploadFile,
+	      openSnackBar: _snackBar.openSnackBar,
+	      startProgress: _status.startProgress,
+	      endProgress: _status.endProgress
+	    }, dispatch)
+	  };
+	}
+
+	var _default = (0, _reactRedux.connect)(mapStateToProps, mapDispatchToProps)(Fab);
+
+	exports.default = _default;
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(Fab, 'Fab', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/Fab/index.js');
+
+	  __REACT_HOT_LOADER__.register(mapStateToProps, 'mapStateToProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/Fab/index.js');
+
+	  __REACT_HOT_LOADER__.register(mapDispatchToProps, 'mapDispatchToProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/Fab/index.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/Fab/index.js');
+	})();
+
+	;
+
+/***/ },
+/* 69 */
+/***/ function(module, exports) {
+
+	module.exports = {
+		"cover": "client-routes-Manage-routes-Files-views-Fab-style-index_cover_3JN",
+		"closed": "client-routes-Manage-routes-Files-views-Fab-style-index_closed_JjS",
+		"actions": "client-routes-Manage-routes-Files-views-Fab-style-index_actions_2Vm",
+		"container": "client-routes-Manage-routes-Files-views-Fab-style-index_container_2Os",
+		"button": "client-routes-Manage-routes-Files-views-Fab-style-index_button_22o",
+		"action": "client-routes-Manage-routes-Files-views-Fab-style-index_action_2TG",
+		"tooltip": "client-routes-Manage-routes-Files-views-Fab-style-index_tooltip_IUz",
+		"opened": "client-routes-Manage-routes-Files-views-Fab-style-index_opened_2iQ",
+		"main": "client-routes-Manage-routes-Files-views-Fab-style-index_main_3m9"
+	};
+
+/***/ },
+/* 70 */
+/***/ function(module, exports) {
+
+	module.exports = require("react-dom");
+
+/***/ },
+/* 71 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/FloatingActionButton");
 
 /***/ },
-/* 64 */
+/* 72 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/content/add");
 
 /***/ },
-/* 65 */
+/* 73 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/svg-icons/content/clear");
+
+/***/ },
+/* 74 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/svg-icons/file/create-new-folder");
+
+/***/ },
+/* 75 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/svg-icons/file/file-upload");
+
+/***/ },
+/* 76 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+	var _react = __webpack_require__(34);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _Dialog = __webpack_require__(77);
+
+	var _Dialog2 = _interopRequireDefault(_Dialog);
+
+	var _FlatButton = __webpack_require__(78);
+
+	var _FlatButton2 = _interopRequireDefault(_FlatButton);
+
+	var _TextField = __webpack_require__(79);
+
+	var _TextField2 = _interopRequireDefault(_TextField);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var NewFolderDialog = function (_Component) {
+	  _inherits(NewFolderDialog, _Component);
+
+	  function NewFolderDialog(props, context) {
+	    _classCallCheck(this, NewFolderDialog);
+
+	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(NewFolderDialog).call(this, props, context));
+
+	    _this.handleCancel = function () {
+	      _this.props.onCancel();
+	    };
+
+	    _this.handleSubmit = function () {
+	      _this.props.onSubmit(_this.state.value);
+	    };
+
+	    _this.handleChange = function (e) {
+	      _this.setState({ value: e.target.value });
+	    };
+
+	    _this.state = {
+	      value: undefined
+	    };
+	    return _this;
+	  }
+
+	  _createClass(NewFolderDialog, [{
+	    key: 'render',
+	    value: function render() {
+	      var actions = [_react2.default.createElement(_FlatButton2.default, {
+	        label: '取消',
+	        primary: true,
+	        onTouchTap: this.handleCancel
+	      }), _react2.default.createElement(_FlatButton2.default, {
+	        label: '确认',
+	        primary: true,
+	        onTouchTap: this.handleSubmit
+	      })];
+
+	      return _react2.default.createElement(
+	        _Dialog2.default,
+	        {
+	          title: '新建文件夹',
+	          actions: actions,
+	          modal: true,
+	          open: this.props.open
+	        },
+	        _react2.default.createElement(_TextField2.default, {
+	          value: this.state.value,
+	          onChange: this.handleChange,
+	          hintText: '请输入合法的文件名',
+	          floatingLabelText: '文件夹名字',
+	          fullWidth: true,
+	          rowsMax: 1
+	        })
+	      );
+	    }
+	  }]);
+
+	  return NewFolderDialog;
+	}(_react.Component);
+
+	NewFolderDialog.propTypes = {
+	  open: _react.PropTypes.bool,
+	  onCancel: _react.PropTypes.func,
+	  onSubmit: _react.PropTypes.func
+	};
+
+	NewFolderDialog.defaultProps = {
+	  open: false
+	};
+
+	var _default = NewFolderDialog;
+	exports.default = _default;
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(NewFolderDialog, 'NewFolderDialog', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/components/NewFolderDialog/index.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/components/NewFolderDialog/index.js');
+	})();
+
+	;
+
+/***/ },
+/* 77 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/Dialog");
+
+/***/ },
+/* 78 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/FlatButton");
+
+/***/ },
+/* 79 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/TextField");
+
+/***/ },
+/* 80 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2609,9 +3463,9 @@
 	});
 	exports.fullpath = exports.pageName = undefined;
 
-	var _store = __webpack_require__(20);
+	var _store = __webpack_require__(21);
 
-	var _index = __webpack_require__(44);
+	var _index = __webpack_require__(51);
 
 	var pageName = 'edit';
 	var path = 'edit';
@@ -2621,11 +3475,11 @@
 	  return {
 	    path: path,
 	    getComponent: function getComponent(nextState, cb) {
-	      var reducers = __webpack_require__(66).default;
+	      var reducers = __webpack_require__(81).default;
 	      (0, _store.injectAsyncReducer)(store, pageName, reducers);
 
 	      if (true) {
-	        cb(null, __webpack_require__(69).default);
+	        cb(null, __webpack_require__(84).default);
 	      } else {
 	        require.ensure([], function (require) {
 	          cb(null, require('./views/FileEditor').default);
@@ -2660,7 +3514,7 @@
 	;
 
 /***/ },
-/* 66 */
+/* 81 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2669,9 +3523,9 @@
 	  value: true
 	});
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _file = __webpack_require__(67);
+	var _file = __webpack_require__(82);
 
 	var _file2 = _interopRequireDefault(_file);
 
@@ -2698,7 +3552,7 @@
 	;
 
 /***/ },
-/* 67 */
+/* 82 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2711,13 +3565,13 @@
 
 	exports.getFileContent = getFileContent;
 
-	var _FileActionTypes = __webpack_require__(68);
+	var _FileActionTypes = __webpack_require__(83);
 
-	var _createReducer2 = __webpack_require__(49);
+	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(65);
+	var _index = __webpack_require__(80);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2762,7 +3616,7 @@
 	;
 
 /***/ },
-/* 68 */
+/* 83 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -2787,7 +3641,7 @@
 	;
 
 /***/ },
-/* 69 */
+/* 84 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2798,47 +3652,47 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _react = __webpack_require__(30);
+	var _react = __webpack_require__(34);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(29);
+	var _reactRedux = __webpack_require__(33);
 
-	var _file = __webpack_require__(70);
+	var _file = __webpack_require__(85);
 
-	var _file2 = __webpack_require__(67);
+	var _file2 = __webpack_require__(82);
 
-	var _actionBar = __webpack_require__(84);
+	var _actionBar = __webpack_require__(86);
 
-	var _IconButton = __webpack_require__(58);
+	var _IconButton = __webpack_require__(63);
 
 	var _IconButton2 = _interopRequireDefault(_IconButton);
 
-	var _done = __webpack_require__(94);
+	var _done = __webpack_require__(88);
 
 	var _done2 = _interopRequireDefault(_done);
 
-	var _colors = __webpack_require__(41);
+	var _colors = __webpack_require__(47);
 
-	var _snackBar = __webpack_require__(89);
+	var _snackBar = __webpack_require__(42);
 
-	var _brace = __webpack_require__(71);
+	var _brace = __webpack_require__(89);
 
 	var _brace2 = _interopRequireDefault(_brace);
 
-	var _reactAce = __webpack_require__(72);
+	var _reactAce = __webpack_require__(90);
 
 	var _reactAce2 = _interopRequireDefault(_reactAce);
 
-	__webpack_require__(73);
+	__webpack_require__(91);
 
-	__webpack_require__(74);
+	__webpack_require__(92);
 
-	__webpack_require__(75);
+	__webpack_require__(93);
 
-	__webpack_require__(76);
+	__webpack_require__(94);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2873,12 +3727,12 @@
 	      if (_this.originFileContent !== newValue) {
 	        // file changed
 	        _this.curFileContent = newValue;
-	        _this.props.actions.setAactionBarRMenu({
-	          element: _this.saveBtn
+	        _this.props.actions.setAactionBar({
+	          iconElementRight: _this.saveBtn
 	        });
 	      } else {
 	        // 没改变，隐藏保存图标
-	        _this.props.actions.setAactionBarRMenu(undefined);
+	        _this.props.actions.setAactionBar();
 	      }
 	    };
 
@@ -2887,12 +3741,12 @@
 	      var _this$props$actions = _this$props.actions;
 	      var saveFile = _this$props$actions.saveFile;
 	      var openSnackBar = _this$props$actions.openSnackBar;
-	      var setAactionBarRMenu = _this$props$actions.setAactionBarRMenu;
+	      var setAactionBar = _this$props$actions.setAactionBar;
 	      var fullname = _this$props.fullname;
 
 	      saveFile({ filename: fullname, content: _this.curFileContent }).then(function () {
 	        _this.originFileContent = _this.curFileContent;
-	        setAactionBarRMenu(undefined);
+	        setAactionBar();
 	        openSnackBar({
 	          message: '保存成功！'
 	        });
@@ -2925,7 +3779,7 @@
 	  }, {
 	    key: 'componentWillUnmount',
 	    value: function componentWillUnmount() {
-	      this.props.actions.setAactionBarRMenu(undefined);
+	      this.props.actions.setAactionBar();
 	    }
 	  }, {
 	    key: 'render',
@@ -2981,7 +3835,7 @@
 	    dispatch: dispatch,
 	    actions: (0, _redux.bindActionCreators)({
 	      fetchFileContent: _file.fetchFileContent, saveFile: _file.saveFile,
-	      setAactionBarRMenu: _actionBar.setAactionBarRMenu, openSnackBar: _snackBar.openSnackBar
+	      setAactionBar: _actionBar.setAactionBar, openSnackBar: _snackBar.openSnackBar
 	    }, dispatch)
 	  };
 	}
@@ -3012,7 +3866,7 @@
 	;
 
 /***/ },
-/* 70 */
+/* 85 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3022,13 +3876,13 @@
 	});
 	exports.saveFile = exports.fetchFileContent = undefined;
 
-	var _FileActionTypes = __webpack_require__(68);
+	var _FileActionTypes = __webpack_require__(83);
 
-	var _createAction = __webpack_require__(56);
+	var _createAction = __webpack_require__(43);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
-	var _fetch = __webpack_require__(52);
+	var _fetch = __webpack_require__(58);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
@@ -3064,43 +3918,7 @@
 	;
 
 /***/ },
-/* 71 */
-/***/ function(module, exports) {
-
-	module.exports = require("brace");
-
-/***/ },
-/* 72 */
-/***/ function(module, exports) {
-
-	module.exports = require("react-ace");
-
-/***/ },
-/* 73 */
-/***/ function(module, exports) {
-
-	module.exports = require("brace/mode/javascript");
-
-/***/ },
-/* 74 */
-/***/ function(module, exports) {
-
-	module.exports = require("brace/mode/html");
-
-/***/ },
-/* 75 */
-/***/ function(module, exports) {
-
-	module.exports = require("brace/mode/css");
-
-/***/ },
-/* 76 */
-/***/ function(module, exports) {
-
-	module.exports = require("brace/theme/github");
-
-/***/ },
-/* 77 */
+/* 86 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3108,169 +3926,20 @@
 	Object.defineProperty(exports, "__esModule", {
 	  value: true
 	});
+	exports.setAactionBar = undefined;
 
-	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+	var _ActionBarActionTypes = __webpack_require__(87);
 
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	var _createAction = __webpack_require__(43);
 
-	var _index = __webpack_require__(78);
-
-	var _index2 = _interopRequireDefault(_index);
-
-	var _react = __webpack_require__(30);
-
-	var _react2 = _interopRequireDefault(_react);
-
-	var _redux = __webpack_require__(22);
-
-	var _reactRedux = __webpack_require__(29);
-
-	var _actionBar = __webpack_require__(84);
-
-	var _actionBar2 = __webpack_require__(83);
-
-	var _meta = __webpack_require__(93);
-
-	var _meta2 = __webpack_require__(91);
-
-	var _AppBar = __webpack_require__(79);
-
-	var _AppBar2 = _interopRequireDefault(_AppBar);
-
-	var _Drawer = __webpack_require__(80);
-
-	var _Drawer2 = _interopRequireDefault(_Drawer);
-
-	var _MenuItem = __webpack_require__(61);
-
-	var _MenuItem2 = _interopRequireDefault(_MenuItem);
-
-	var _history = __webpack_require__(25);
-
-	var _history2 = _interopRequireDefault(_history);
+	var _createAction2 = _interopRequireDefault(_createAction);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-	var Manage = function (_Component) {
-	  _inherits(Manage, _Component);
-
-	  function Manage(props, context) {
-	    _classCallCheck(this, Manage);
-
-	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Manage).call(this, props, context));
-
-	    _this.handleToggle = function () {
-	      return _this.setState({ open: !_this.state.open });
-	    };
-
-	    _this.handleClose = function () {
-	      return _this.setState({ open: false });
-	    };
-
-	    _this.state = {
-	      open: false
-	    };
-	    return _this;
-	  }
-
-	  _createClass(Manage, [{
-	    key: 'getAppBarMenu',
-	    value: function getAppBarMenu() {
-	      var menu = {};
-	      var rightMenu = this.props.appBarMenu.rightMenu;
-
-	      if (rightMenu) {
-	        menu.iconElementRight = rightMenu.element;
-	      }
-
-	      return menu;
-	    }
-	  }, {
-	    key: 'goHme',
-	    value: function goHme() {
-	      _history2.default.push('/manage/files');
-	    }
-	  }, {
-	    key: 'render',
-	    value: function render() {
-	      var _this2 = this;
-
-	      var appBarMenu = this.getAppBarMenu();
-	      return _react2.default.createElement(
-	        'div',
-	        { className: 'Manage' },
-	        _react2.default.createElement(_AppBar2.default, _extends({
-	          title: 'Cloud File',
-	          onTitleTouchTap: this.goHme,
-	          onLeftIconButtonTouchTap: this.handleToggle
-	        }, appBarMenu)),
-	        _react2.default.createElement(
-	          _Drawer2.default,
-	          {
-	            docked: false,
-	            width: 256,
-	            open: this.state.open,
-	            onRequestChange: function onRequestChange(open) {
-	              return _this2.setState({ open: open });
-	            }
-	          },
-	          _react2.default.createElement(
-	            _MenuItem2.default,
-	            { onTouchTap: this.handleClose },
-	            'Menu Item'
-	          ),
-	          _react2.default.createElement(
-	            _MenuItem2.default,
-	            { onTouchTap: this.handleClose },
-	            'Menu Item 2'
-	          )
-	        ),
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'Manage__main' },
-	          (0, _react.cloneElement)(this.props.children, { basePath: this.props.meta.basePath })
-	        )
-	      );
-	    }
-	  }]);
-
-	  return Manage;
-	}(_react.Component);
-
-	Manage.propTypes = {
-	  location: _react.PropTypes.object, // react-router 注入属性
-	  children: _react.PropTypes.node,
-	  rightMenu: _react.PropTypes.any };
-
-	Manage.need = [ssrGetBasePath];
-
-	function ssrGetBasePath(location) {
-	  return (0, _meta.fetchBasePath)();
-	}
-
-	function mapStateToProps(state) {
-	  return {
-	    appBarMenu: (0, _actionBar2.getMenu)(state),
-	    meta: (0, _meta2.getMeta)(state)
-	  };
-	}
-
-	function mapDispatchToProps(dispatch) {
-	  return {
-	    dispatch: dispatch,
-	    actions: (0, _redux.bindActionCreators)({ setAactionBarRMenu: _actionBar.setAactionBarRMenu }, dispatch)
-	  };
-	}
-
-	var _default = (0, _reactRedux.connect)(mapStateToProps, mapDispatchToProps)(Manage);
-
-	exports.default = _default;
+	var setAactionBar = exports.setAactionBar = (0, _createAction2.default)(_ActionBarActionTypes.SET_ACTIONBAR_ELEMENT, function () {
+	  var props = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
+	  return props;
+	});
 	;
 
 	(function () {
@@ -3278,40 +3947,77 @@
 	    return;
 	  }
 
-	  __REACT_HOT_LOADER__.register(Manage, 'Manage', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
-
-	  __REACT_HOT_LOADER__.register(ssrGetBasePath, 'ssrGetBasePath', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
-
-	  __REACT_HOT_LOADER__.register(mapStateToProps, 'mapStateToProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
-
-	  __REACT_HOT_LOADER__.register(mapDispatchToProps, 'mapDispatchToProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
-
-	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
+	  __REACT_HOT_LOADER__.register(setAactionBar, 'setAactionBar', '/Users/mymomo/workspace/yunying/client/routes/Manage/actions/actionBar.js');
 	})();
 
 	;
 
 /***/ },
-/* 78 */
+/* 87 */
 /***/ function(module, exports) {
 
-	
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	var SET_ACTIONBAR_ELEMENT = exports.SET_ACTIONBAR_ELEMENT = 'SET_ACTIONBAR_ELEMENT';
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(SET_ACTIONBAR_ELEMENT, 'SET_ACTIONBAR_ELEMENT', '/Users/mymomo/workspace/yunying/client/routes/Manage/constants/ActionBarActionTypes.js');
+	})();
+
+	;
 
 /***/ },
-/* 79 */
+/* 88 */
 /***/ function(module, exports) {
 
-	module.exports = require("material-ui/AppBar");
+	module.exports = require("material-ui/svg-icons/action/done");
 
 /***/ },
-/* 80 */
+/* 89 */
 /***/ function(module, exports) {
 
-	module.exports = require("material-ui/Drawer");
+	module.exports = require("brace");
 
 /***/ },
-/* 81 */,
-/* 82 */
+/* 90 */
+/***/ function(module, exports) {
+
+	module.exports = require("react-ace");
+
+/***/ },
+/* 91 */
+/***/ function(module, exports) {
+
+	module.exports = require("brace/mode/javascript");
+
+/***/ },
+/* 92 */
+/***/ function(module, exports) {
+
+	module.exports = require("brace/mode/html");
+
+/***/ },
+/* 93 */
+/***/ function(module, exports) {
+
+	module.exports = require("brace/mode/css");
+
+/***/ },
+/* 94 */
+/***/ function(module, exports) {
+
+	module.exports = require("brace/theme/github");
+
+/***/ },
+/* 95 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3320,13 +4026,13 @@
 	  value: true
 	});
 
-	var _redux = __webpack_require__(22);
+	var _redux = __webpack_require__(23);
 
-	var _meta = __webpack_require__(91);
+	var _meta = __webpack_require__(96);
 
 	var _meta2 = _interopRequireDefault(_meta);
 
-	var _actionBar = __webpack_require__(83);
+	var _actionBar = __webpack_require__(98);
 
 	var _actionBar2 = _interopRequireDefault(_actionBar);
 
@@ -3354,256 +4060,7 @@
 	;
 
 /***/ },
-/* 83 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-
-	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-	exports.getMenu = getMenu;
-
-	var _ActionBarActionTypes = __webpack_require__(85);
-
-	var _createReducer2 = __webpack_require__(49);
-
-	var _createReducer3 = _interopRequireDefault(_createReducer2);
-
-	var _index = __webpack_require__(44);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-	var initialState = {
-	  rightMenu: undefined
-	};
-
-	var _default = (0, _createReducer3.default)(initialState, _defineProperty({}, _ActionBarActionTypes.SET_ACTIONBAR_RIGHT_MENU, function (state, action) {
-	  return _extends({}, state, {
-	    rightMenu: action.payload
-	  });
-	}));
-
-	exports.default = _default;
-	function getMenu(state) {
-	  var rightMenu = state[_index.pageName].actionBar.rightMenu;
-
-	  return {
-	    rightMenu: rightMenu
-	  };
-	}
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/routes/Manage/reducers/actionBar.js');
-
-	  __REACT_HOT_LOADER__.register(getMenu, 'getMenu', '/Users/mymomo/workspace/yunying/client/routes/Manage/reducers/actionBar.js');
-
-	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/reducers/actionBar.js');
-	})();
-
-	;
-
-/***/ },
-/* 84 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	exports.setAactionBarRMenu = undefined;
-
-	var _ActionBarActionTypes = __webpack_require__(85);
-
-	var _createAction = __webpack_require__(56);
-
-	var _createAction2 = _interopRequireDefault(_createAction);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	var setAactionBarRMenu = exports.setAactionBarRMenu = (0, _createAction2.default)(_ActionBarActionTypes.SET_ACTIONBAR_RIGHT_MENU, function (node) {
-	  return node;
-	});
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(setAactionBarRMenu, 'setAactionBarRMenu', '/Users/mymomo/workspace/yunying/client/routes/Manage/actions/actionBar.js');
-	})();
-
-	;
-
-/***/ },
-/* 85 */
-/***/ function(module, exports) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	var SET_ACTIONBAR_RIGHT_MENU = exports.SET_ACTIONBAR_RIGHT_MENU = 'SET_ACTIONBAR_RIGHT_MENU';
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(SET_ACTIONBAR_RIGHT_MENU, 'SET_ACTIONBAR_RIGHT_MENU', '/Users/mymomo/workspace/yunying/client/routes/Manage/constants/ActionBarActionTypes.js');
-	})();
-
-	;
-
-/***/ },
-/* 86 */
-/***/ function(module, exports) {
-
-	module.exports = require("material-ui/Snackbar");
-
-/***/ },
-/* 87 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-
-	var _createReducer;
-
-	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-	exports.getSnackBar = getSnackBar;
-
-	var _SnackBarActionTypes = __webpack_require__(88);
-
-	var _createReducer2 = __webpack_require__(49);
-
-	var _createReducer3 = _interopRequireDefault(_createReducer2);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-	var initialState = {
-	  open: false,
-	  message: ''
-	};
-
-	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _SnackBarActionTypes.OPEN_SNACKBAR, function (state, action) {
-	  return _extends({}, action.payload, {
-	    open: true
-	  });
-	}), _defineProperty(_createReducer, _SnackBarActionTypes.CLOSE_SNACKBAR, function (state, action) {
-	  return _extends({}, action.payload, {
-	    open: false
-	  });
-	}), _createReducer));
-
-	exports.default = _default;
-	function getSnackBar(state) {
-	  return state.snackBar;
-	}
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/reducers/snackBar.js');
-
-	  __REACT_HOT_LOADER__.register(getSnackBar, 'getSnackBar', '/Users/mymomo/workspace/yunying/client/reducers/snackBar.js');
-
-	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/reducers/snackBar.js');
-	})();
-
-	;
-
-/***/ },
-/* 88 */
-/***/ function(module, exports) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	var OPEN_SNACKBAR = exports.OPEN_SNACKBAR = 'OPEN_SNACKBAR';
-	var CLOSE_SNACKBAR = exports.CLOSE_SNACKBAR = 'CLOSE_SNACKBAR';
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(OPEN_SNACKBAR, 'OPEN_SNACKBAR', '/Users/mymomo/workspace/yunying/client/constants/SnackBarActionTypes.js');
-
-	  __REACT_HOT_LOADER__.register(CLOSE_SNACKBAR, 'CLOSE_SNACKBAR', '/Users/mymomo/workspace/yunying/client/constants/SnackBarActionTypes.js');
-	})();
-
-	;
-
-/***/ },
-/* 89 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	exports.closeSnackBar = exports.openSnackBar = undefined;
-
-	var _SnackBarActionTypes = __webpack_require__(88);
-
-	var _createAction = __webpack_require__(56);
-
-	var _createAction2 = _interopRequireDefault(_createAction);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	var openSnackBar = exports.openSnackBar = (0, _createAction2.default)(_SnackBarActionTypes.OPEN_SNACKBAR, function (props) {
-	  return props;
-	});
-
-	var closeSnackBar = exports.closeSnackBar = (0, _createAction2.default)(_SnackBarActionTypes.CLOSE_SNACKBAR, function (props) {
-	  return props;
-	});
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(openSnackBar, 'openSnackBar', '/Users/mymomo/workspace/yunying/client/actions/snackBar.js');
-
-	  __REACT_HOT_LOADER__.register(closeSnackBar, 'closeSnackBar', '/Users/mymomo/workspace/yunying/client/actions/snackBar.js');
-	})();
-
-	;
-
-/***/ },
-/* 90 */,
-/* 91 */
+/* 96 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3616,13 +4073,13 @@
 
 	exports.getMeta = getMeta;
 
-	var _MetaActionTypes = __webpack_require__(92);
+	var _MetaActionTypes = __webpack_require__(97);
 
-	var _createReducer2 = __webpack_require__(49);
+	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(44);
+	var _index = __webpack_require__(51);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -3659,7 +4116,7 @@
 	;
 
 /***/ },
-/* 92 */
+/* 97 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -3681,7 +4138,259 @@
 	;
 
 /***/ },
-/* 93 */
+/* 98 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	exports.getActionBarProps = getActionBarProps;
+
+	var _ActionBarActionTypes = __webpack_require__(87);
+
+	var _createReducer2 = __webpack_require__(31);
+
+	var _createReducer3 = _interopRequireDefault(_createReducer2);
+
+	var _index = __webpack_require__(51);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+	var initialState = {};
+
+	var _default = (0, _createReducer3.default)(initialState, _defineProperty({}, _ActionBarActionTypes.SET_ACTIONBAR_ELEMENT, function (state, action) {
+	  return action.payload;
+	}));
+
+	exports.default = _default;
+	function getActionBarProps(state) {
+	  return state[_index.pageName].actionBar;
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/routes/Manage/reducers/actionBar.js');
+
+	  __REACT_HOT_LOADER__.register(getActionBarProps, 'getActionBarProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/reducers/actionBar.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/reducers/actionBar.js');
+	})();
+
+	;
+
+/***/ },
+/* 99 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+	var _index = __webpack_require__(100);
+
+	var _index2 = _interopRequireDefault(_index);
+
+	var _react = __webpack_require__(34);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _redux = __webpack_require__(23);
+
+	var _reactRedux = __webpack_require__(33);
+
+	var _actionBar = __webpack_require__(86);
+
+	var _actionBar2 = __webpack_require__(98);
+
+	var _meta = __webpack_require__(101);
+
+	var _meta2 = __webpack_require__(96);
+
+	var _AppBar = __webpack_require__(102);
+
+	var _AppBar2 = _interopRequireDefault(_AppBar);
+
+	var _Drawer = __webpack_require__(103);
+
+	var _Drawer2 = _interopRequireDefault(_Drawer);
+
+	var _MenuItem = __webpack_require__(66);
+
+	var _MenuItem2 = _interopRequireDefault(_MenuItem);
+
+	var _history = __webpack_require__(26);
+
+	var _history2 = _interopRequireDefault(_history);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var Manage = function (_Component) {
+	  _inherits(Manage, _Component);
+
+	  function Manage(props, context) {
+	    _classCallCheck(this, Manage);
+
+	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Manage).call(this, props, context));
+
+	    _this.handleToggle = function () {
+	      return _this.setState({ open: !_this.state.open });
+	    };
+
+	    _this.handleClose = function () {
+	      return _this.setState({ open: false });
+	    };
+
+	    _this.state = {
+	      open: false
+	    };
+	    return _this;
+	  }
+
+	  _createClass(Manage, [{
+	    key: 'goHme',
+
+
+	    // getAppBarProps() {
+	    //   const menu = {};
+	    //   const { rightMenu, title } = this.props.appBar;
+	    //   if (rightMenu) {
+	    //     menu.iconElementRight = rightMenu.element;
+	    //   }
+
+	    //   if (title) {
+	    //     menu.title = title.text;
+	    //     menu.onTitleTouchTap = title.onTouchTap;
+	    //   }
+
+	    //   return menu;
+	    // }
+
+	    value: function goHme() {
+	      _history2.default.push('/manage/files');
+	    }
+	  }, {
+	    key: 'render',
+	    value: function render() {
+	      var _this2 = this;
+
+	      var appBar = this.props.appBar;
+	      return _react2.default.createElement(
+	        'div',
+	        { className: 'Manage' },
+	        _react2.default.createElement(_AppBar2.default, _extends({
+	          title: 'Cloud File',
+	          onTitleTouchTap: this.goHme,
+	          onLeftIconButtonTouchTap: this.handleToggle
+	        }, appBar)),
+	        _react2.default.createElement(
+	          _Drawer2.default,
+	          {
+	            docked: false,
+	            width: 256,
+	            open: this.state.open,
+	            onRequestChange: function onRequestChange(open) {
+	              return _this2.setState({ open: open });
+	            }
+	          },
+	          _react2.default.createElement(
+	            _MenuItem2.default,
+	            { onTouchTap: this.handleClose },
+	            'Menu Item'
+	          ),
+	          _react2.default.createElement(
+	            _MenuItem2.default,
+	            { onTouchTap: this.handleClose },
+	            'Menu Item 2'
+	          )
+	        ),
+	        _react2.default.createElement(
+	          'div',
+	          { className: 'Manage__main' },
+	          (0, _react.cloneElement)(this.props.children, { basePath: this.props.meta.basePath })
+	        )
+	      );
+	    }
+	  }]);
+
+	  return Manage;
+	}(_react.Component);
+
+	Manage.propTypes = {
+	  location: _react.PropTypes.object, // react-router 注入属性
+	  children: _react.PropTypes.node,
+	  appBar: _react.PropTypes.any };
+
+	Manage.need = [ssrGetBasePath];
+
+	function ssrGetBasePath(location) {
+	  return (0, _meta.fetchBasePath)();
+	}
+
+	function mapStateToProps(state) {
+	  return {
+	    appBar: (0, _actionBar2.getActionBarProps)(state),
+	    meta: (0, _meta2.getMeta)(state)
+	  };
+	}
+
+	function mapDispatchToProps(dispatch) {
+	  return {
+	    dispatch: dispatch,
+	    actions: (0, _redux.bindActionCreators)({ setAactionBar: _actionBar.setAactionBar }, dispatch)
+	  };
+	}
+
+	var _default = (0, _reactRedux.connect)(mapStateToProps, mapDispatchToProps)(Manage);
+
+	exports.default = _default;
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(Manage, 'Manage', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
+
+	  __REACT_HOT_LOADER__.register(ssrGetBasePath, 'ssrGetBasePath', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
+
+	  __REACT_HOT_LOADER__.register(mapStateToProps, 'mapStateToProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
+
+	  __REACT_HOT_LOADER__.register(mapDispatchToProps, 'mapDispatchToProps', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/views/Manage/index.js');
+	})();
+
+	;
+
+/***/ },
+/* 100 */
+/***/ function(module, exports) {
+
+	
+
+/***/ },
+/* 101 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3691,13 +4400,13 @@
 	});
 	exports.fetchBasePath = undefined;
 
-	var _MetaActionTypes = __webpack_require__(92);
+	var _MetaActionTypes = __webpack_require__(97);
 
-	var _createAction = __webpack_require__(56);
+	var _createAction = __webpack_require__(43);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
-	var _fetch = __webpack_require__(52);
+	var _fetch = __webpack_require__(58);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
@@ -3719,10 +4428,153 @@
 	;
 
 /***/ },
-/* 94 */
+/* 102 */
 /***/ function(module, exports) {
 
-	module.exports = require("material-ui/svg-icons/action/done");
+	module.exports = require("material-ui/AppBar");
+
+/***/ },
+/* 103 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/Drawer");
+
+/***/ },
+/* 104 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/CircularProgress");
+
+/***/ },
+/* 105 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _createReducer;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	exports.getStatus = getStatus;
+
+	var _StatusActionTypes = __webpack_require__(106);
+
+	var _createReducer2 = __webpack_require__(31);
+
+	var _createReducer3 = _interopRequireDefault(_createReducer2);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+	var initialState = {
+	  progress: {
+	    show: false
+	  }
+	};
+
+	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _StatusActionTypes.START_PROGRESS, function (state, action) {
+	  return _extends({}, state, {
+	    progress: {
+	      show: true
+	    }
+	  });
+	}), _defineProperty(_createReducer, _StatusActionTypes.END_PROGRESS, function (state, action) {
+	  return _extends({}, state, {
+	    progress: {
+	      show: false
+	    }
+	  });
+	}), _createReducer));
+
+	exports.default = _default;
+	function getStatus(state) {
+	  return state.status;
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
+
+	  __REACT_HOT_LOADER__.register(getStatus, 'getStatus', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
+	})();
+
+	;
+
+/***/ },
+/* 106 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	var START_PROGRESS = exports.START_PROGRESS = 'START_PROGRESS';
+	var END_PROGRESS = exports.END_PROGRESS = 'END_PROGRESS';
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(START_PROGRESS, 'START_PROGRESS', '/Users/mymomo/workspace/yunying/client/constants/StatusActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(END_PROGRESS, 'END_PROGRESS', '/Users/mymomo/workspace/yunying/client/constants/StatusActionTypes.js');
+	})();
+
+	;
+
+/***/ },
+/* 107 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	exports.endProgress = exports.startProgress = undefined;
+
+	var _StatusActionTypes = __webpack_require__(106);
+
+	var _createAction = __webpack_require__(43);
+
+	var _createAction2 = _interopRequireDefault(_createAction);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var startProgress = exports.startProgress = (0, _createAction2.default)(_StatusActionTypes.START_PROGRESS, function (props) {
+	  return props;
+	});
+
+	var endProgress = exports.endProgress = (0, _createAction2.default)(_StatusActionTypes.END_PROGRESS, function (props) {
+	  return props;
+	});
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(startProgress, 'startProgress', '/Users/mymomo/workspace/yunying/client/actions/status.js');
+
+	  __REACT_HOT_LOADER__.register(endProgress, 'endProgress', '/Users/mymomo/workspace/yunying/client/actions/status.js');
+	})();
+
+	;
 
 /***/ }
 /******/ ]);

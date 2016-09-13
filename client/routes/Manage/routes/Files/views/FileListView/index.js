@@ -13,10 +13,13 @@ import {
 
 import FileListItem from '../../components/FileListItem';
 import { List, MakeSelectable, ListItem } from 'material-ui/List';
+import Fab from '../Fab';
 import FloatingActionButton from 'material-ui/FloatingActionButton';
 import IconButton from 'material-ui/IconButton';
 import MoreVertIcon from 'material-ui/svg-icons/navigation/more-vert';
 import ContentAdd from 'material-ui/svg-icons/content/add';
+import CreateNewFolderIcon from 'material-ui/svg-icons/file/create-new-folder';
+import FileUploadIcon from 'material-ui/svg-icons/file/file-upload';
 import IconMenu from 'material-ui/IconMenu';
 import MenuItem from 'material-ui/MenuItem';
 import { grey400, red500 } from 'material-ui/styles/colors';
@@ -82,10 +85,6 @@ class FileListView extends Component {
     }
   }
 
-  // shouldComponentUpdate(nextProps) {
-  //   return this.props.curDir !== nextProps.curDir;
-  // }
-
   componentDidMount() {
     FileListView.need.forEach(need =>
       this.props.dispatch(need(this.props.location))
@@ -135,16 +134,7 @@ class FileListView extends Component {
           {fileItems}
         </SelectedList>
         {downloadFileAddress && <iframe src={downloadFileAddress} style={{display: 'none'}} />}
-        <FloatingActionButton 
-          style={{ 
-            background: red500,
-            position: 'fixed',
-            bottom: 23,
-            right: 23,
-          }}
-        >
-          <ContentAdd />
-        </FloatingActionButton>
+        <Fab />
       </div>
     );
   }

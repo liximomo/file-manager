@@ -44,7 +44,7 @@ const baseCfg = {
       {
         test:   /\.s?css$/,
         // include: /shared\/routes/,
-        loader: 'style-loader!css-loader?modules&localIdentName=[name]_[local]_[hash:base64:5]!postcss-loader!sass-loader'
+        loader: 'style-loader!css-loader?modules&localIdentName=[path][name]_[local]_[hash:base64:5]!postcss-loader!sass-loader'
       },
       {
         test: /\.(jpe?g|png|gif|svg)$/i, 

@@ -34,7 +34,7 @@ module.exports = {
       {
         test:   /\.s?css$/,
         // include: /shared\/routes/,
-        loader: 'css-loader/locals?modules&localIdentName=[name]_[local]_[hash:base64:3]!postcss-loader!sass-loader'
+        loader: 'css-loader/locals?modules&localIdentName=[path][name]_[local]_[hash:base64:3]!postcss-loader!sass-loader'
       },
       {
         test: /\.(jpe?g|png|gif|svg)$/i, 

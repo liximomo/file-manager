@@ -16,11 +16,12 @@ app.set('views', path.resolve(varConfig.projectPath, './views'));
 app.set('view engine', 'pug');
 
 function apiErrorHandler(err, req, res, next) {
-  let error = { error: err.message };
-  if (process.env.NODE_ENV === 'development') {
-    return res.status(500).send(`<pre>${err.stack}<pre>`);
-  }
-  return res.status(500).send(error);
+  let error = { 
+    trace: err.stack,
+    error: true, 
+    message: err.message
+  };
+  return res.send(error);
 }
 
 // api 路由
