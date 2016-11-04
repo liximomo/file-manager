@@ -10,10 +10,18 @@ export function unFlat(...argNames) {
 
 export default function createAction(type, payloadCreator = a => a, metaCreator) {
   return (...args) => {
+    const hasError = args[0] instanceof Error;
+
     const action = {
       type,
-      payload: payloadCreator(...args)
+      payload: hasError ? args[0] : payloadCreator(...args)
     };
+
+    if (hasError) {
+      // Handle FSA errors where the payload is an Error object. Set error.
+      action.error = true;
+    }
+    
     if (typeof metaCreator === 'function') {
       action.meta = metaCreator(...args);
     }

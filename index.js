@@ -19,14 +19,17 @@ if (process.env.NODE_ENV === 'production') {
   const Browsersync = require('browser-sync');
 
   const compiler = webpack([webpackConfig.client, webpackConfig.server]);
-  compiler.plugin('done', () => handleServerBundleComplete());
 
   const wpMiddleware = webpackDevMiddleware(compiler, {
     noInfo: true, 
     //colors: true,
     publicPath: webpackConfig.client.output.publicPath
   });
-  const hotMiddleware = webpackHotMiddleware(compiler.compilers[0]);
+  // const hotMiddleware = webpackHotMiddleware(compiler.compilers[0]);
+  const hotMiddleware = compiler
+      .compilers
+      .filter(compiler => compiler.options.target !== 'node')
+      .map(compiler => webpackHotMiddleware(compiler));
 
   let handleServerBundleComplete = () => {
     runServer((err, host) => {
@@ -39,14 +42,17 @@ if (process.env.NODE_ENV === 'production') {
       bs.init({
         proxy: {
           target: host,
-          middleware: [wpMiddleware, hotMiddleware],
+          middleware: [wpMiddleware].concat(hotMiddleware),
         },
 
         // no need to watch '*.js' here, webpack will take care of it for us,
         // including full page reloads if HMR won't work
-        files: ['dist/server.bundle.js'],
+        //files: ['dist/server.bundle.js'],
       });
       handleServerBundleComplete = runServer;
     });
   };
+
+  compiler.plugin('done', () => handleServerBundleComplete());
+
 }

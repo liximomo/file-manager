@@ -147,6 +147,26 @@ function newFile(req, res, next) {
     });
 }
 
+/**
+ * 重命名文件
+ * @param  {[type]}   req  [description]
+ * @param  {[type]}   res  [description]
+ * @param  {Function} next [description]
+ * @return {[type]}        [description]
+ */
+function renameFile(req, res, next) {
+  const oriPath = req.params.filename;
+  const newName = req.query.name;
+  const directory = path.dirname(oriPath);
+  const destPath = path.join(directory, newName);
+  fileUtil.rename(oriPath, destPath)
+      .then(() => res.send({
+        name: newName,
+        fullname: destPath,
+      }))
+      .catch(err => next(err));
+}
+
 function uploadFile(req, res, next) {
   const basePath = req.params.filename;
 
@@ -216,6 +236,9 @@ router.route('/files/:filename/directory')
 
 router.route('/files/:filename/upload')
   .post(uploadFile);
+
+router.route('/files/:filename/rename')
+  .post(renameFile);
 
 router.route('/basePath')
   .get(getBasePath);

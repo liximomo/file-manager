@@ -141,7 +141,7 @@ export function zipDirectory(dir) {
   archive.on('error', function(err){
     throw err;
   });
-  archive.directory(dir);
+  archive.directory(dir, '');
   archive.finalize();
   return archive;
 };

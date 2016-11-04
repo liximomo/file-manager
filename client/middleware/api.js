@@ -29,7 +29,7 @@ function checkPendingActionType(action) {
 export default function promiseMiddleware(store) {
   return next => action => {
     if (!isPromise(action.payload)) {
-      return next(action);
+      return Promise.resolve(next(action));
     }
 
     function actionWith(data, meta) {
@@ -60,13 +60,13 @@ export default function promiseMiddleware(store) {
       .then(
         response => {
           if (response.error) {
-            return next(actionWith({ payload: response, fail: true }, pendingMeta));
+            return next(actionWith({ payload: response, error: true }, pendingMeta));
           }
           
           return next(actionWith({ payload: response }, pendingMeta));
         },
         error =>
-          next(actionWith({ payload: error, error: true }, pendingMeta))
+          next(actionWith({ payload: error, fatalError: true }, pendingMeta))
       );
   }
 };

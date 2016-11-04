@@ -6,6 +6,8 @@ import MenuItem from 'material-ui/MenuItem';
 import { ListItem } from 'material-ui/List';
 import { grey400 } from 'material-ui/styles/colors';
 
+import Prompt from 'client/components/Prompt';
+
 const iconButtonElement = (
   <IconButton
     tooltipPosition="bottom-left"

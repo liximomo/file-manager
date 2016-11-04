@@ -518,6 +518,28 @@
 	  });
 	}
 
+	/**
+	 * 重命名文件
+	 * @param  {[type]}   req  [description]
+	 * @param  {[type]}   res  [description]
+	 * @param  {Function} next [description]
+	 * @return {[type]}        [description]
+	 */
+	function renameFile(req, res, next) {
+	  var oriPath = req.params.filename;
+	  var newName = req.query.name;
+	  var directory = _path2.default.dirname(oriPath);
+	  var destPath = _path2.default.join(directory, newName);
+	  fileUtil.rename(oriPath, destPath).then(function () {
+	    return res.send({
+	      name: newName,
+	      fullname: destPath
+	    });
+	  }).catch(function (err) {
+	    return next(err);
+	  });
+	}
+
 	function uploadFile(req, res, next) {
 	  var basePath = req.params.filename;
 
@@ -583,6 +605,8 @@
 
 	router.route('/files/:filename/upload').post(uploadFile);
 
+	router.route('/files/:filename/rename').post(renameFile);
+
 	router.route('/basePath').get(getBasePath);
 
 	var _default = router;
@@ -611,6 +635,8 @@
 	  __REACT_HOT_LOADER__.register(saveFile, 'saveFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(newFile, 'newFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
+
+	  __REACT_HOT_LOADER__.register(renameFile, 'renameFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
 	  __REACT_HOT_LOADER__.register(uploadFile, 'uploadFile', '/Users/mymomo/workspace/yunying/server/controllers/file/index.js');
 
@@ -801,7 +827,7 @@
 	  archive.on('error', function (err) {
 	    throw err;
 	  });
-	  archive.directory(dir);
+	  archive.directory(dir, '');
 	  archive.finalize();
 	  return archive;
 	};
@@ -982,27 +1008,27 @@
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _reactRedux = __webpack_require__(33);
+	var _reactRedux = __webpack_require__(37);
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _server = __webpack_require__(35);
+	var _server = __webpack_require__(39);
 
-	var _RouterContext = __webpack_require__(36);
+	var _RouterContext = __webpack_require__(40);
 
 	var _RouterContext2 = _interopRequireDefault(_RouterContext);
 
-	var _match = __webpack_require__(37);
+	var _match = __webpack_require__(41);
 
 	var _match2 = _interopRequireDefault(_match);
 
-	var _fetchData = __webpack_require__(38);
+	var _fetchData = __webpack_require__(42);
 
 	var _fetchData2 = _interopRequireDefault(_fetchData);
 
-	var _route = __webpack_require__(39);
+	var _route = __webpack_require__(43);
 
 	var _route2 = _interopRequireDefault(_route);
 
@@ -1216,7 +1242,7 @@
 	  return function (next) {
 	    return function (action) {
 	      if (!isPromise(action.payload)) {
-	        return next(action);
+	        return Promise.resolve(next(action));
 	      }
 
 	      function actionWith(data, meta) {
@@ -1243,12 +1269,12 @@
 
 	      return fulfillPromise(action.payload).then(function (response) {
 	        if (response.error) {
-	          return next(actionWith({ payload: response, fail: true }, pendingMeta));
+	          return next(actionWith({ payload: response, error: true }, pendingMeta));
 	        }
 
 	        return next(actionWith({ payload: response }, pendingMeta));
 	      }, function (error) {
-	        return next(actionWith({ payload: error, error: true }, pendingMeta));
+	        return next(actionWith({ payload: error, fatalError: true }, pendingMeta));
 	      });
 	    };
 	  };
@@ -1320,15 +1346,19 @@
 
 	var _redux = __webpack_require__(23);
 
-	var _snackBar = __webpack_require__(29);
+	var _dialog = __webpack_require__(29);
+
+	var _dialog2 = _interopRequireDefault(_dialog);
+
+	var _snackBar = __webpack_require__(32);
 
 	var _snackBar2 = _interopRequireDefault(_snackBar);
 
-	var _pending = __webpack_require__(32);
+	var _pending = __webpack_require__(34);
 
 	var _pending2 = _interopRequireDefault(_pending);
 
-	var _status = __webpack_require__(105);
+	var _status = __webpack_require__(35);
 
 	var _status2 = _interopRequireDefault(_status);
 
@@ -1339,6 +1369,7 @@
 
 	  return (0, _redux.combineReducers)(_extends({
 	    status: _status2.default,
+	    dialog: _dialog2.default,
 	    snackBar: _snackBar2.default,
 	    pending: _pending2.default
 	  }, asyncReducers));
@@ -1367,11 +1398,157 @@
 
 	var _createReducer;
 
+	exports.getDialog = getDialog;
+
+	var _DialogTypes = __webpack_require__(30);
+
+	var _createReducer2 = __webpack_require__(31);
+
+	var _createReducer3 = _interopRequireDefault(_createReducer2);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+	var initialState = {
+	  open: false,
+	  type: _DialogTypes.DIALOG_TYPE.DIALOG,
+	  props: {}
+	};
+
+	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _DialogTypes.OPEN_DIALOG, function (state, action) {
+	  return {
+	    open: true,
+	    type: action.payload.type,
+	    props: action.payload.props
+	  };
+	}), _defineProperty(_createReducer, _DialogTypes.CLOSE_DIALOG, function (state, action) {
+	  return {
+	    open: false
+	  };
+	}), _createReducer));
+
+	exports.default = _default;
+	function getDialog(state) {
+	  return state.dialog;
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/reducers/dialog.js');
+
+	  __REACT_HOT_LOADER__.register(getDialog, 'getDialog', '/Users/mymomo/workspace/yunying/client/reducers/dialog.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/reducers/dialog.js');
+	})();
+
+	;
+
+/***/ },
+/* 30 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	var OPEN_DIALOG = exports.OPEN_DIALOG = 'OPEN_DIALOG';
+	var CLOSE_DIALOG = exports.CLOSE_DIALOG = 'CLOSE_DIALOG';
+
+	var DIALOG_TYPE = exports.DIALOG_TYPE = {
+	  PROMT: 'PROMT',
+	  DIALOG: 'DIALOG'
+	};
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(OPEN_DIALOG, 'OPEN_DIALOG', '/Users/mymomo/workspace/yunying/client/constants/DialogTypes.js');
+
+	  __REACT_HOT_LOADER__.register(CLOSE_DIALOG, 'CLOSE_DIALOG', '/Users/mymomo/workspace/yunying/client/constants/DialogTypes.js');
+
+	  __REACT_HOT_LOADER__.register(DIALOG_TYPE, 'DIALOG_TYPE', '/Users/mymomo/workspace/yunying/client/constants/DialogTypes.js');
+	})();
+
+	;
+
+/***/ },
+/* 31 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	exports.default = createReducer;
+	function createReducer(initialState, handlers) {
+	  return function reducer() {
+	    var state = arguments.length <= 0 || arguments[0] === undefined ? initialState : arguments[0];
+	    var action = arguments[1];
+
+	    if (handlers.hasOwnProperty(action.type)) {
+	      if (action.error) {
+	        if (true) {
+	          console.log('action error:', action);
+	        }
+	        return _extends({}, state, {
+	          error: action.payload
+	        });
+	      }
+	      if (action.fatalError) {
+	        if (true) {
+	          console.log('action fatalError:', action);
+	        }
+	        return _extends({}, state, {
+	          fatalError: action.payload
+	        });
+	      }
+	      return handlers[action.type](state, action);
+	    }
+	    return state;
+	  };
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(createReducer, 'createReducer', '/Users/mymomo/workspace/yunying/client/reducers/createReducer.js');
+	})();
+
+	;
+
+/***/ },
+/* 32 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _createReducer;
+
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 	exports.getSnackBar = getSnackBar;
 
-	var _SnackBarActionTypes = __webpack_require__(30);
+	var _SnackBarActionTypes = __webpack_require__(33);
 
 	var _createReducer2 = __webpack_require__(31);
 
@@ -1417,7 +1594,7 @@
 	;
 
 /***/ },
-/* 30 */
+/* 33 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -1442,59 +1619,7 @@
 	;
 
 /***/ },
-/* 31 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-
-	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-	exports.default = createReducer;
-	function createReducer(initialState, handlers) {
-	  return function reducer() {
-	    var state = arguments.length <= 0 || arguments[0] === undefined ? initialState : arguments[0];
-	    var action = arguments[1];
-
-	    if (handlers.hasOwnProperty(action.type)) {
-	      if (action.error) {
-	        if (true) {
-	          console.log('action error:', action);
-	        }
-	        return _extends({}, state, {
-	          error: action.payload
-	        });
-	      }
-	      if (action.fail) {
-	        if (true) {
-	          console.log('action fail:', action);
-	        }
-	        return _extends({}, state, {
-	          fail: action.payload
-	        });
-	      }
-	      return handlers[action.type](state, action);
-	    }
-	    return state;
-	  };
-	}
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(createReducer, 'createReducer', '/Users/mymomo/workspace/yunying/client/reducers/createReducer.js');
-	})();
-
-	;
-
-/***/ },
-/* 32 */
+/* 34 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1531,37 +1656,128 @@
 	;
 
 /***/ },
-/* 33 */
-/***/ function(module, exports) {
-
-	module.exports = require("react-redux");
-
-/***/ },
-/* 34 */
-/***/ function(module, exports) {
-
-	module.exports = require("react");
-
-/***/ },
 /* 35 */
-/***/ function(module, exports) {
+/***/ function(module, exports, __webpack_require__) {
 
-	module.exports = require("react-dom/server");
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _createReducer;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	exports.getStatus = getStatus;
+
+	var _StatusActionTypes = __webpack_require__(36);
+
+	var _createReducer2 = __webpack_require__(31);
+
+	var _createReducer3 = _interopRequireDefault(_createReducer2);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+	var initialState = {
+	  progress: {
+	    show: false
+	  }
+	};
+
+	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _StatusActionTypes.START_PROGRESS, function (state, action) {
+	  return _extends({}, state, {
+	    progress: {
+	      show: true
+	    }
+	  });
+	}), _defineProperty(_createReducer, _StatusActionTypes.END_PROGRESS, function (state, action) {
+	  return _extends({}, state, {
+	    progress: {
+	      show: false
+	    }
+	  });
+	}), _createReducer));
+
+	exports.default = _default;
+	function getStatus(state) {
+	  return state.status;
+	}
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
+
+	  __REACT_HOT_LOADER__.register(getStatus, 'getStatus', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
+	})();
+
+	;
 
 /***/ },
 /* 36 */
 /***/ function(module, exports) {
 
-	module.exports = require("react-router/lib/RouterContext");
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	var START_PROGRESS = exports.START_PROGRESS = 'START_PROGRESS';
+	var END_PROGRESS = exports.END_PROGRESS = 'END_PROGRESS';
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(START_PROGRESS, 'START_PROGRESS', '/Users/mymomo/workspace/yunying/client/constants/StatusActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(END_PROGRESS, 'END_PROGRESS', '/Users/mymomo/workspace/yunying/client/constants/StatusActionTypes.js');
+	})();
+
+	;
 
 /***/ },
 /* 37 */
 /***/ function(module, exports) {
 
-	module.exports = require("react-router/lib/match");
+	module.exports = require("react-redux");
 
 /***/ },
 /* 38 */
+/***/ function(module, exports) {
+
+	module.exports = require("react");
+
+/***/ },
+/* 39 */
+/***/ function(module, exports) {
+
+	module.exports = require("react-dom/server");
+
+/***/ },
+/* 40 */
+/***/ function(module, exports) {
+
+	module.exports = require("react-router/lib/RouterContext");
+
+/***/ },
+/* 41 */
+/***/ function(module, exports) {
+
+	module.exports = require("react-router/lib/match");
+
+/***/ },
+/* 42 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -1592,7 +1808,7 @@
 	;
 
 /***/ },
-/* 39 */
+/* 43 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1602,11 +1818,11 @@
 	});
 	exports.fullpath = exports.pageName = undefined;
 
-	var _App = __webpack_require__(40);
+	var _App = __webpack_require__(44);
 
 	var _App2 = _interopRequireDefault(_App);
 
-	var _Manage = __webpack_require__(51);
+	var _Manage = __webpack_require__(56);
 
 	var _Manage2 = _interopRequireDefault(_Manage);
 
@@ -1650,7 +1866,7 @@
 	;
 
 /***/ },
-/* 40 */
+/* 44 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1661,41 +1877,41 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _index = __webpack_require__(41);
+	var _index = __webpack_require__(45);
 
 	var _index2 = _interopRequireDefault(_index);
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
 	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(33);
+	var _reactRedux = __webpack_require__(37);
 
-	var _snackBar = __webpack_require__(42);
+	var _snackBar = __webpack_require__(46);
 
-	var _snackBar2 = __webpack_require__(29);
+	var _snackBar2 = __webpack_require__(32);
 
-	var _status = __webpack_require__(105);
+	var _status = __webpack_require__(35);
 
-	var _MuiThemeProvider = __webpack_require__(44);
+	var _MuiThemeProvider = __webpack_require__(48);
 
 	var _MuiThemeProvider2 = _interopRequireDefault(_MuiThemeProvider);
 
-	var _getMuiTheme = __webpack_require__(45);
+	var _getMuiTheme = __webpack_require__(49);
 
 	var _getMuiTheme2 = _interopRequireDefault(_getMuiTheme);
 
-	var _theme = __webpack_require__(46);
+	var _theme = __webpack_require__(50);
 
 	var _theme2 = _interopRequireDefault(_theme);
 
-	var _Snackbar = __webpack_require__(50);
+	var _Snackbar = __webpack_require__(54);
 
 	var _Snackbar2 = _interopRequireDefault(_Snackbar);
 
-	var _CircularProgress = __webpack_require__(104);
+	var _CircularProgress = __webpack_require__(55);
 
 	var _CircularProgress2 = _interopRequireDefault(_CircularProgress);
 
@@ -1808,7 +2024,7 @@
 	;
 
 /***/ },
-/* 41 */
+/* 45 */
 /***/ function(module, exports) {
 
 	module.exports = {
@@ -1816,7 +2032,7 @@
 	};
 
 /***/ },
-/* 42 */
+/* 46 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1826,9 +2042,9 @@
 	});
 	exports.closeSnackBar = exports.openSnackBar = undefined;
 
-	var _SnackBarActionTypes = __webpack_require__(30);
+	var _SnackBarActionTypes = __webpack_require__(33);
 
-	var _createAction = __webpack_require__(43);
+	var _createAction = __webpack_require__(47);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
@@ -1856,7 +2072,7 @@
 	;
 
 /***/ },
-/* 43 */
+/* 47 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -1891,10 +2107,18 @@
 	  var metaCreator = arguments[2];
 
 	  return function () {
+	    var hasError = (arguments.length <= 0 ? undefined : arguments[0]) instanceof Error;
+
 	    var action = {
 	      type: type,
-	      payload: payloadCreator.apply(undefined, arguments)
+	      payload: hasError ? arguments.length <= 0 ? undefined : arguments[0] : payloadCreator.apply(undefined, arguments)
 	    };
+
+	    if (hasError) {
+	      // Handle FSA errors where the payload is an Error object. Set error.
+	      action.error = true;
+	    }
+
 	    if (typeof metaCreator === 'function') {
 	      action.meta = metaCreator.apply(undefined, arguments);
 	    }
@@ -1916,19 +2140,19 @@
 	;
 
 /***/ },
-/* 44 */
+/* 48 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/MuiThemeProvider");
 
 /***/ },
-/* 45 */
+/* 49 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/getMuiTheme");
 
 /***/ },
-/* 46 */
+/* 50 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1937,11 +2161,11 @@
 	  value: true
 	});
 
-	var _colors = __webpack_require__(47);
+	var _colors = __webpack_require__(51);
 
-	var _colorManipulator = __webpack_require__(48);
+	var _colorManipulator = __webpack_require__(52);
 
-	var _spacing = __webpack_require__(49);
+	var _spacing = __webpack_require__(53);
 
 	var _spacing2 = _interopRequireDefault(_spacing);
 
@@ -1995,31 +2219,37 @@
 	;
 
 /***/ },
-/* 47 */
+/* 51 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/colors");
 
 /***/ },
-/* 48 */
+/* 52 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/utils/colorManipulator");
 
 /***/ },
-/* 49 */
+/* 53 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/styles/spacing");
 
 /***/ },
-/* 50 */
+/* 54 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/Snackbar");
 
 /***/ },
-/* 51 */
+/* 55 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/CircularProgress");
+
+/***/ },
+/* 56 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2029,17 +2259,17 @@
 	});
 	exports.fullpath = exports.pageName = undefined;
 
-	var _Files = __webpack_require__(52);
+	var _Files = __webpack_require__(57);
 
 	var _Files2 = _interopRequireDefault(_Files);
 
-	var _Edit = __webpack_require__(80);
+	var _Edit = __webpack_require__(87);
 
 	var _Edit2 = _interopRequireDefault(_Edit);
 
 	var _store = __webpack_require__(21);
 
-	var _route = __webpack_require__(39);
+	var _route = __webpack_require__(43);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2051,11 +2281,11 @@
 	  return {
 	    path: path,
 	    getComponent: function getComponent(nextState, cb) {
-	      var reducers = __webpack_require__(95).default;
+	      var reducers = __webpack_require__(102).default;
 	      (0, _store.injectAsyncReducer)(store, pageName, reducers);
 
 	      if (true) {
-	        cb(null, __webpack_require__(99).default);
+	        cb(null, __webpack_require__(106).default);
 	      } else {
 	        require.ensure([], function (require) {
 	          cb(null, require('./views/Manage').default);
@@ -2092,7 +2322,7 @@
 	;
 
 /***/ },
-/* 52 */
+/* 57 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2104,7 +2334,7 @@
 
 	var _store = __webpack_require__(21);
 
-	var _index = __webpack_require__(51);
+	var _index = __webpack_require__(56);
 
 	var pageName = 'files';
 	var path = 'files';
@@ -2114,11 +2344,11 @@
 	  return {
 	    path: path,
 	    getComponent: function getComponent(nextState, cb) {
-	      var reducers = __webpack_require__(53).default;
+	      var reducers = __webpack_require__(58).default;
 	      (0, _store.injectAsyncReducer)(store, pageName, reducers);
 
 	      if (true) {
-	        cb(null, __webpack_require__(56).default);
+	        cb(null, __webpack_require__(61).default);
 	      } else {
 	        require.ensure([], function (require) {
 	          cb(null, require('./views/FileListView').default);
@@ -2153,7 +2383,7 @@
 	;
 
 /***/ },
-/* 53 */
+/* 58 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2164,7 +2394,7 @@
 
 	var _redux = __webpack_require__(23);
 
-	var _files = __webpack_require__(54);
+	var _files = __webpack_require__(59);
 
 	var _files2 = _interopRequireDefault(_files);
 
@@ -2191,7 +2421,7 @@
 	;
 
 /***/ },
-/* 54 */
+/* 59 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2206,19 +2436,20 @@
 
 	exports.getCurDirInfo = getCurDirInfo;
 
-	var _FileActionTypes = __webpack_require__(55);
+	var _FileActionTypes = __webpack_require__(60);
 
 	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(52);
+	var _index = __webpack_require__(57);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 	var initialState = {
+	  checkable: false,
 	  basePath: undefined,
 	  curDir: {
 	    children: []
@@ -2245,11 +2476,45 @@
 	  return _extends({}, state, {
 	    curDir: newCur
 	  });
+	}), _defineProperty(_createReducer, _FileActionTypes.RENAME_FILE, function (state, action) {
+	  var cur = state.curDir;
+	  var nameInfo = action.meta;
+	  var newCur = _extends({}, cur, {
+	    children: cur.children.map(function (file) {
+	      return file.fullname === nameInfo.oriName ? _extends({}, file, action.payload) : file;
+	    })
+	  });
+	  return _extends({}, state, {
+	    curDir: newCur
+	  });
+	}), _defineProperty(_createReducer, _FileActionTypes.CHECK_FILE, function (state, action) {
+	  var cur = state.curDir;
+	  var _action$payload = action.payload;
+	  var name = _action$payload.name;
+	  var checked = _action$payload.checked;
+
+	  var newCur = _extends({}, cur, {
+	    children: cur.children.map(function (file) {
+	      return file.fullname === name ? _extends({}, file, {
+	        checked: checked
+	      }) : file;
+	    })
+	  });
+	  return _extends({}, state, {
+	    curDir: newCur
+	  });
+	}), _defineProperty(_createReducer, _FileActionTypes.TOGGLE_CHECK, function (state, action) {
+	  return _extends({}, state, {
+	    checkable: action.payload
+	  });
 	}), _createReducer));
 
 	exports.default = _default;
 	function getCurDirInfo(state) {
-	  return state[_index.pageName].files.curDir;
+	  return {
+	    checkable: state[_index.pageName].files.checkable,
+	    dirInfo: state[_index.pageName].files.curDir
+	  };
 	}
 	;
 
@@ -2268,7 +2533,7 @@
 	;
 
 /***/ },
-/* 55 */
+/* 60 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -2279,6 +2544,9 @@
 	var FETCH_FILES = exports.FETCH_FILES = 'FETCH_FILES';
 	var CREATE_FOLDER = exports.CREATE_FOLDER = 'CREATE_FOLDER';
 	var UPLOAD_FILE = exports.UPLOAD_FILE = 'UPLOAD_FILE';
+	var RENAME_FILE = exports.RENAME_FILE = 'RENAME_FILE';
+	var CHECK_FILE = exports.CHECK_FILE = 'CHECK_FILE';
+	var TOGGLE_CHECK = exports.TOGGLE_CHECK = 'TOGGLE_CHECK';
 	;
 
 	(function () {
@@ -2291,12 +2559,18 @@
 	  __REACT_HOT_LOADER__.register(CREATE_FOLDER, 'CREATE_FOLDER', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
 
 	  __REACT_HOT_LOADER__.register(UPLOAD_FILE, 'UPLOAD_FILE', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(RENAME_FILE, 'RENAME_FILE', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(CHECK_FILE, 'CHECK_FILE', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
+
+	  __REACT_HOT_LOADER__.register(TOGGLE_CHECK, 'TOGGLE_CHECK', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/constants/FileActionTypes.js');
 	})();
 
 	;
 
 /***/ },
-/* 56 */
+/* 61 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2305,77 +2579,89 @@
 	  value: true
 	});
 
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _index = __webpack_require__(57);
+	var _index = __webpack_require__(62);
 
 	var _index2 = _interopRequireDefault(_index);
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
 	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(33);
+	var _reactRedux = __webpack_require__(37);
 
-	var _fetch = __webpack_require__(58);
+	var _fetch = __webpack_require__(63);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
-	var _files = __webpack_require__(61);
+	var _files = __webpack_require__(66);
 
-	var _files2 = __webpack_require__(54);
+	var _files2 = __webpack_require__(59);
 
-	var _FileListItem = __webpack_require__(62);
+	var _FileListItem = __webpack_require__(67);
 
 	var _FileListItem2 = _interopRequireDefault(_FileListItem);
 
-	var _List = __webpack_require__(67);
+	var _List = __webpack_require__(72);
 
-	var _Fab = __webpack_require__(68);
+	var _Fab = __webpack_require__(77);
 
 	var _Fab2 = _interopRequireDefault(_Fab);
 
-	var _FloatingActionButton = __webpack_require__(71);
+	var _FloatingActionButton = __webpack_require__(80);
 
 	var _FloatingActionButton2 = _interopRequireDefault(_FloatingActionButton);
 
-	var _IconButton = __webpack_require__(63);
+	var _IconButton = __webpack_require__(68);
 
 	var _IconButton2 = _interopRequireDefault(_IconButton);
 
-	var _moreVert = __webpack_require__(64);
+	var _moreVert = __webpack_require__(69);
 
 	var _moreVert2 = _interopRequireDefault(_moreVert);
 
-	var _add = __webpack_require__(72);
+	var _add = __webpack_require__(81);
 
 	var _add2 = _interopRequireDefault(_add);
 
-	var _createNewFolder = __webpack_require__(74);
+	var _createNewFolder = __webpack_require__(83);
 
 	var _createNewFolder2 = _interopRequireDefault(_createNewFolder);
 
-	var _fileUpload = __webpack_require__(75);
+	var _fileUpload = __webpack_require__(84);
 
 	var _fileUpload2 = _interopRequireDefault(_fileUpload);
 
-	var _IconMenu = __webpack_require__(65);
+	var _IconMenu = __webpack_require__(70);
 
 	var _IconMenu2 = _interopRequireDefault(_IconMenu);
 
-	var _MenuItem = __webpack_require__(66);
+	var _MenuItem = __webpack_require__(71);
 
 	var _MenuItem2 = _interopRequireDefault(_MenuItem);
 
-	var _colors = __webpack_require__(47);
+	var _Checkbox = __webpack_require__(86);
 
-	var _url = __webpack_require__(60);
+	var _Checkbox2 = _interopRequireDefault(_Checkbox);
+
+	var _colors = __webpack_require__(51);
+
+	var _url = __webpack_require__(65);
 
 	var _history = __webpack_require__(26);
 
 	var _history2 = _interopRequireDefault(_history);
+
+	var _snackBar = __webpack_require__(46);
+
+	var _Prompt = __webpack_require__(73);
+
+	var _Prompt2 = _interopRequireDefault(_Prompt);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2399,6 +2685,16 @@
 	    { iconButtonElement: iconButtonElement },
 	    _react2.default.createElement(
 	      _MenuItem2.default,
+	      { onTouchTap: props.onMove },
+	      '移动到'
+	    ),
+	    _react2.default.createElement(
+	      _MenuItem2.default,
+	      { onTouchTap: props.onRename },
+	      '重命名'
+	    ),
+	    _react2.default.createElement(
+	      _MenuItem2.default,
 	      { onTouchTap: props.onDownload },
 	      '下载'
 	    ),
@@ -2411,20 +2707,13 @@
 	};
 
 	var SelectedList = (0, _List.MakeSelectable)(_List.List);
-	var parentFolder = _react2.default.createElement(_List.ListItem, {
-	  value: -1,
-	  key: '..',
-	  primaryText: _react2.default.createElement(
-	    'p',
-	    null,
-	    '..'
-	  ),
-	  secondaryText: _react2.default.createElement(
-	    'p',
-	    null,
-	    '上一层'
-	  )
-	});
+
+	var fileCheckBox = function fileCheckBox(onCheck) {
+	  return _react2.default.createElement(_Checkbox2.default, {
+	    style: { width: 'auto', marginTop: 10 },
+	    onCheck: onCheck
+	  });
+	};
 
 	var FileListView = function (_Component) {
 	  _inherits(FileListView, _Component);
@@ -2434,6 +2723,18 @@
 
 	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(FileListView).call(this, props, context));
 
+	    _this.checkFile = function (file) {
+	      return function (event, isInputChecked) {
+	        _this.props.actions.checkFile({ name: file.fullname, checked: isInputChecked });
+	      };
+	    };
+
+	    _this.move = function (file) {
+	      return function () {
+	        _this.props.actions.toggleCheck(true);
+	      };
+	    };
+
 	    _this.downloadFile = function (file) {
 	      return function () {
 	        _this.setState({
@@ -2442,21 +2743,98 @@
 	      };
 	    };
 
+	    _this.rename = function (file) {
+	      return function () {
+	        _this.fileToRename = file;
+	        _this.setState({
+	          prompt: {
+	            open: true,
+	            title: '重命名文件',
+	            label: '名称',
+	            placeholder: file.name,
+	            defaultValue: file.name,
+	            selected: true,
+	            onSubmit: _this.handleRename
+	          }
+	        });
+	      };
+	    };
+
+	    _this.handleRename = function (newName) {
+	      var _this$props$actions = _this.props.actions;
+	      var renameFile = _this$props$actions.renameFile;
+	      var openSnackBar = _this$props$actions.openSnackBar;
+
+	      renameFile(_this.fileToRename, newName).then(function (action) {
+	        _this.setState({
+	          prompt: {
+	            open: false
+	          }
+	        });
+
+	        if (action.error) {
+	          openSnackBar({
+	            message: action.payload.message
+	          });
+	          return;
+	        }
+
+	        if (action.fatalError) {
+	          openSnackBar({
+	            message: '发生错误！'
+	          });
+	          return;
+	        }
+	      });
+	    };
+
 	    _this.selectFile = function (event, index) {
 	      if (index === -1) {
 	        _history2.default.push('/manage/files?filename=' + _this.props.parent);
 	        return;
 	      }
 	      var file = _this.props.files[index];
-	      if (file.file) {
+	      if (file.file && !_this.props.checkable) {
 	        _history2.default.push('/manage/edit?filename=' + file.fullname);
 	      } else if (file.directory) {
 	        _history2.default.push('/manage/files?filename=' + file.fullname);
 	      }
 	    };
 
+	    _this.hidePrompt = function () {
+	      _this.setState({
+	        prompt: {
+	          open: false
+	        }
+	      });
+	    };
+
+	    _this.parentFolder = _react2.default.createElement(_List.ListItem
+	    /*leftCheckbox={ checkable ? fileCheckBox(this.checkFile(file)) : undefined }*/
+	    , {
+	      onTouchTap: function onTouchTap(event) {
+	        return _this.selectFile(event, -1);
+	      },
+	      key: '..',
+	      primaryText: _react2.default.createElement(
+	        'p',
+	        null,
+	        '..'
+	      ),
+	      secondaryText: _react2.default.createElement(
+	        'p',
+	        null,
+	        '上一层'
+	      )
+	    });
+
 	    _this.state = {
-	      downloadFileAddress: null
+	      selectedFile: null, // 当前选中的文件
+	      checkedFile: null,
+	      downloadFileAddress: null,
+	      prompt: {
+	        open: false
+	      }
 	    };
 	    return _this;
 	  }
@@ -2489,32 +2867,59 @@
 	      var _props = this.props;
 	      var files = _props.files;
 	      var curDir = _props.curDir;
+	      var checkable = _props.checkable;
+	      var _state = this.state;
+	      var prompt = _state.prompt;
+	      var selectedFile = _state.selectedFile;
 
 
 	      var isRoot = this.props.basePath === curDir;
 
+	      var palette = this.context.muiTheme.palette;
 	      var fileItems = files.map(function (file, index) {
-	        return _react2.default.createElement(_List.ListItem, {
-	          value: index,
-	          key: file.fullname,
-	          rightIconButton: rightIconMenu({
-	            onDownload: _this4.downloadFile(file)
-	          }),
-	          primaryText: _react2.default.createElement(
-	            'p',
-	            null,
-	            file.name
-	          ),
-	          secondaryText: _react2.default.createElement(
-	            'p',
-	            null,
-	            file.fullname
+	        return _react2.default.createElement(
+	          _List.ListItem,
+	          { key: file.fullname,
+	            rightIconButton: rightIconMenu({
+	              onMove: _this4.move(file),
+	              onDownload: _this4.downloadFile(file),
+	              onRename: _this4.rename(file)
+	            })
+	          },
+	          _react2.default.createElement(
+	            'div',
+	            { style: { display: 'flex' } },
+	            checkable && fileCheckBox(_this4.checkFile(file)),
+	            _react2.default.createElement(
+	              'div',
+	              {
+	                onTouchTap: function onTouchTap(event) {
+	                  return _this4.selectFile(event, index);
+	                },
+	                style: {
+	                  marginTop: -16,
+	                  marginBottom: -16,
+	                  paddingTop: 16,
+	                  marginLeft: checkable ? 10 : 0,
+	                  flexGrow: 1
+	                } },
+	              _react2.default.createElement(
+	                'p',
+	                { style: { color: palette.textColor } },
+	                file.name
+	              ),
+	              _react2.default.createElement(
+	                'p',
+	                { style: { color: palette.secondaryTextColor } },
+	                file.fullname
+	              )
+	            )
 	          )
-	        });
+	        );
 	      });
 
 	      if (!isRoot) {
-	        fileItems.unshift(parentFolder);
+	        fileItems.unshift(this.parentFolder);
 	      }
 
 	      var downloadFileAddress = this.state.downloadFileAddress;
@@ -2522,11 +2927,14 @@
 	        'div',
 	        { className: 'FileListView' },
 	        _react2.default.createElement(
-	          SelectedList,
-	          { onChange: this.selectFile },
+	          _List.List,
+	          null,
 	          fileItems
 	        ),
 	        downloadFileAddress && _react2.default.createElement('iframe', { src: downloadFileAddress, style: { display: 'none' } }),
+	        _react2.default.createElement(_Prompt2.default, _extends({
+	          onCancel: this.hidePrompt
+	        }, prompt)),
 	        _react2.default.createElement(_Fab2.default, null)
 	      );
 	    }
@@ -2538,6 +2946,10 @@
 	FileListView.propTypes = {
 	  location: _react.PropTypes.object, // react-router 注入属性
 	  children: _react.PropTypes.node
+	};
+
+	FileListView.contextTypes = {
+	  muiTheme: _react.PropTypes.object.isRequired
 	};
 
 	FileListView.need = [ssrGetFiles];
@@ -2552,8 +2964,10 @@
 	}
 
 	function mapStateToProps(state) {
-	  var dir = (0, _files2.getCurDirInfo)(state);
+	  var files = (0, _files2.getCurDirInfo)(state);
+	  var dir = files.dirInfo;
 	  return {
+	    checkable: files.checkable,
 	    files: dir.children,
 	    curDir: dir.fullname,
 	    parent: dir.parent
@@ -2563,7 +2977,7 @@
 	function mapDispatchToProps(dispatch) {
 	  return {
 	    dispatch: dispatch,
-	    actions: (0, _redux.bindActionCreators)({ fetchDirFiles: _files.fetchDirFiles }, dispatch)
+	    actions: (0, _redux.bindActionCreators)({ fetchDirFiles: _files.fetchDirFiles, renameFile: _files.renameFile, checkFile: _files.checkFile, toggleCheck: _files.toggleCheck, openSnackBar: _snackBar.openSnackBar }, dispatch)
 	  };
 	}
 
@@ -2583,7 +2997,7 @@
 
 	  __REACT_HOT_LOADER__.register(SelectedList, 'SelectedList', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/FileListView/index.js');
 
-	  __REACT_HOT_LOADER__.register(parentFolder, 'parentFolder', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/FileListView/index.js');
+	  __REACT_HOT_LOADER__.register(fileCheckBox, 'fileCheckBox', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/FileListView/index.js');
 
 	  __REACT_HOT_LOADER__.register(FileListView, 'FileListView', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/views/FileListView/index.js');
 
@@ -2599,13 +3013,13 @@
 	;
 
 /***/ },
-/* 57 */
+/* 62 */
 /***/ function(module, exports) {
 
 	
 
 /***/ },
-/* 58 */
+/* 63 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2617,9 +3031,9 @@
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	__webpack_require__(59);
+	__webpack_require__(64);
 
-	var _url = __webpack_require__(60);
+	var _url = __webpack_require__(65);
 
 	var baseurl = (0, _url.getBase)();
 
@@ -2672,13 +3086,13 @@
 	;
 
 /***/ },
-/* 59 */
+/* 64 */
 /***/ function(module, exports) {
 
 	module.exports = require("isomorphic-fetch");
 
 /***/ },
-/* 60 */
+/* 65 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2726,7 +3140,7 @@
 	;
 
 /***/ },
-/* 61 */
+/* 66 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2734,19 +3148,19 @@
 	Object.defineProperty(exports, "__esModule", {
 	  value: true
 	});
-	exports.uploadFile = exports._uploadFile = exports.createFolder = exports._createFolder = exports.fetchDirFiles = undefined;
+	exports.toggleCheck = exports.checkFile = exports.renameFile = exports._renameFile = exports.uploadFile = exports._uploadFile = exports.createFolder = exports._createFolder = exports.fetchDirFiles = undefined;
 
-	var _FileActionTypes = __webpack_require__(55);
+	var _FileActionTypes = __webpack_require__(60);
 
-	var _createAction = __webpack_require__(43);
+	var _createAction = __webpack_require__(47);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
-	var _fetch = __webpack_require__(58);
+	var _fetch = __webpack_require__(63);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
-	var _files = __webpack_require__(54);
+	var _files = __webpack_require__(59);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2754,7 +3168,7 @@
 	  return (0, _fetch2.default)('files/' + encodeURIComponent(filename) + '?children');
 	});
 
-	var _createFolder = exports._createFolder = (0, _createAction2.default)(_FileActionTypes.CREATE_FOLDER, function (parent, name) {
+	var _createFolder = exports._createFolder = (0, _createAction2.default)(_FileActionTypes.CREATE_FOLDER, function (parent, name, isExist) {
 	  return (0, _fetch2.default)('files/' + encodeURIComponent(parent) + '/directory?name=' + name, {
 	    method: 'POST'
 	  });
@@ -2763,8 +3177,11 @@
 	var createFolder = exports.createFolder = function createFolder(name) {
 	  return function (dispatch, getState) {
 	    var dir = (0, _files.getCurDirInfo)(getState());
-
-	    return dispatch(_createFolder(dir.fullname, name));
+	    var isExist = dir.children.some(function (file) {
+	      return file.directory && file.name === name;
+	    });
+	    var action = isExist ? _createFolder(new Error('文件夹已存在！')) : _createFolder(dir.fullname, name);
+	    return dispatch(action);
 	  };
 	};
 
@@ -2779,13 +3196,42 @@
 	  });
 	});
 
-	var uploadFile = exports.uploadFile = function uploadFile(name) {
+	var uploadFile = exports.uploadFile = function uploadFile(file) {
 	  return function (dispatch, getState) {
 	    var dir = (0, _files.getCurDirInfo)(getState());
-
-	    return dispatch(_uploadFile(dir.fullname, name));
+	    var isExist = dir.children.some(function (fileItem) {
+	      return fileItem.file && fileItem.name === file.name;
+	    });
+	    var action = isExist ? _uploadFile(new Error('文件已存在！')) : _uploadFile(dir.fullname, file);
+	    return dispatch(action);
 	  };
 	};
+
+	var _renameFile = exports._renameFile = (0, _createAction2.default)(_FileActionTypes.RENAME_FILE, function (oriName, newName) {
+	  return (0, _fetch2.default)('files/' + encodeURIComponent(oriName) + '/rename?name=' + newName, {
+	    method: 'POST'
+	  });
+	}, function (oriName, newName) {
+	  return {
+	    oriName: oriName,
+	    newName: newName
+	  };
+	});
+
+	var renameFile = exports.renameFile = function renameFile(file, newName) {
+	  return function (dispatch, getState) {
+	    var dir = (0, _files.getCurDirInfo)(getState());
+	    var isExist = dir.children.some(function (fileItem) {
+	      return fileItem.file === file.file && fileItem.directory === file.directory && fileItem.name === newName;
+	    });
+	    var action = isExist ? _renameFile(new Error('已存在同名的文件！')) : _renameFile(file.fullname, newName);
+	    return dispatch(action);
+	  };
+	};
+
+	var checkFile = exports.checkFile = (0, _createAction2.default)(_FileActionTypes.CHECK_FILE);
+
+	var toggleCheck = exports.toggleCheck = (0, _createAction2.default)(_FileActionTypes.TOGGLE_CHECK);
 	;
 
 	(function () {
@@ -2802,12 +3248,20 @@
 	  __REACT_HOT_LOADER__.register(_uploadFile, '_uploadFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
 
 	  __REACT_HOT_LOADER__.register(uploadFile, 'uploadFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(_renameFile, '_renameFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(renameFile, 'renameFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(checkFile, 'checkFile', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
+
+	  __REACT_HOT_LOADER__.register(toggleCheck, 'toggleCheck', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/actions/files.js');
 	})();
 
 	;
 
 /***/ },
-/* 62 */
+/* 67 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2818,29 +3272,33 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _IconButton = __webpack_require__(63);
+	var _IconButton = __webpack_require__(68);
 
 	var _IconButton2 = _interopRequireDefault(_IconButton);
 
-	var _moreVert = __webpack_require__(64);
+	var _moreVert = __webpack_require__(69);
 
 	var _moreVert2 = _interopRequireDefault(_moreVert);
 
-	var _IconMenu = __webpack_require__(65);
+	var _IconMenu = __webpack_require__(70);
 
 	var _IconMenu2 = _interopRequireDefault(_IconMenu);
 
-	var _MenuItem = __webpack_require__(66);
+	var _MenuItem = __webpack_require__(71);
 
 	var _MenuItem2 = _interopRequireDefault(_MenuItem);
 
-	var _List = __webpack_require__(67);
+	var _List = __webpack_require__(72);
 
-	var _colors = __webpack_require__(47);
+	var _colors = __webpack_require__(51);
+
+	var _Prompt = __webpack_require__(73);
+
+	var _Prompt2 = _interopRequireDefault(_Prompt);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -2932,37 +3390,210 @@
 	;
 
 /***/ },
-/* 63 */
+/* 68 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/IconButton");
 
 /***/ },
-/* 64 */
+/* 69 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/navigation/more-vert");
 
 /***/ },
-/* 65 */
+/* 70 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/IconMenu");
 
 /***/ },
-/* 66 */
+/* 71 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/MenuItem");
 
 /***/ },
-/* 67 */
+/* 72 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/List");
 
 /***/ },
-/* 68 */
+/* 73 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+	var _react = __webpack_require__(38);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _Dialog = __webpack_require__(74);
+
+	var _Dialog2 = _interopRequireDefault(_Dialog);
+
+	var _FlatButton = __webpack_require__(75);
+
+	var _FlatButton2 = _interopRequireDefault(_FlatButton);
+
+	var _TextField = __webpack_require__(76);
+
+	var _TextField2 = _interopRequireDefault(_TextField);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var Prompt = function (_Component) {
+	  _inherits(Prompt, _Component);
+
+	  function Prompt(props, context) {
+	    _classCallCheck(this, Prompt);
+
+	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Prompt).call(this, props, context));
+
+	    _this.handleCancel = function () {
+	      _this.props.onCancel();
+	    };
+
+	    _this.handleSubmit = function () {
+	      _this.props.onSubmit(_this.value);
+	      //this.setState({ value: null });
+	    };
+
+	    _this.handleChange = function (e) {
+	      _this.value = e.target.value;
+	      //this.setState({ value: e.target.value });
+	    };
+
+	    _this.selectText = function (e) {
+	      var target = e.target;
+	      setTimeout(function () {
+	        target.select();
+	      }, 0);
+	    };
+
+	    return _this;
+	  }
+
+	  _createClass(Prompt, [{
+	    key: 'render',
+
+
+	    // componentWillReceiveProps(nextProps) {
+	    //   if (!this.props.open && nextProps.open) {
+	    //     this.state = {
+	    //       value: nextProps.initValue !== undefined ? ,
+	    //     };
+	    //   }
+	    // }
+
+	    value: function render() {
+	      var _props = this.props;
+	      var title = _props.title;
+	      var placeholder = _props.placeholder;
+	      var label = _props.label;
+	      var selected = _props.selected;
+	      var defaultValue = _props.defaultValue;
+
+	      var actions = [_react2.default.createElement(_FlatButton2.default, {
+	        label: '取消',
+	        primary: true,
+	        onTouchTap: this.handleCancel
+	      }), _react2.default.createElement(_FlatButton2.default, {
+	        label: '确认',
+	        primary: true,
+	        onTouchTap: this.handleSubmit
+	      })];
+
+	      return _react2.default.createElement(
+	        _Dialog2.default,
+	        {
+	          title: title,
+	          actions: actions,
+	          modal: false,
+	          onRequestClose: this.handleCancel,
+	          open: this.props.open
+	        },
+	        _react2.default.createElement(_TextField2.default, {
+	          ref: this.focusInput,
+	          autoFocus: true,
+	          defaultValue: defaultValue,
+	          onFocus: selected ? this.selectText : undefined,
+	          onChange: this.handleChange,
+	          hintText: placeholder,
+	          floatingLabelText: label,
+	          fullWidth: true,
+	          rowsMax: 1
+	        })
+	      );
+	    }
+	  }]);
+
+	  return Prompt;
+	}(_react.Component);
+
+	Prompt.propTypes = {
+	  open: _react.PropTypes.bool,
+	  initValue: _react.PropTypes.string,
+	  title: _react.PropTypes.string,
+	  placeholder: _react.PropTypes.string,
+	  label: _react.PropTypes.string,
+	  onCancel: _react.PropTypes.func,
+	  onSubmit: _react.PropTypes.func
+	};
+
+	Prompt.defaultProps = {
+	  open: false
+	};
+
+	var _default = Prompt;
+	exports.default = _default;
+	;
+
+	(function () {
+	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
+	    return;
+	  }
+
+	  __REACT_HOT_LOADER__.register(Prompt, 'Prompt', '/Users/mymomo/workspace/yunying/client/components/Prompt/index.js');
+
+	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/components/Prompt/index.js');
+	})();
+
+	;
+
+/***/ },
+/* 74 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/Dialog");
+
+/***/ },
+/* 75 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/FlatButton");
+
+/***/ },
+/* 76 */
+/***/ function(module, exports) {
+
+	module.exports = require("material-ui/TextField");
+
+/***/ },
+/* 77 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2975,51 +3606,51 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _index = __webpack_require__(69);
+	var _index = __webpack_require__(78);
 
 	var _index2 = _interopRequireDefault(_index);
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactDom = __webpack_require__(70);
+	var _reactDom = __webpack_require__(79);
 
 	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(33);
+	var _reactRedux = __webpack_require__(37);
 
-	var _FloatingActionButton = __webpack_require__(71);
+	var _FloatingActionButton = __webpack_require__(80);
 
 	var _FloatingActionButton2 = _interopRequireDefault(_FloatingActionButton);
 
-	var _add = __webpack_require__(72);
+	var _add = __webpack_require__(81);
 
 	var _add2 = _interopRequireDefault(_add);
 
-	var _clear = __webpack_require__(73);
+	var _clear = __webpack_require__(82);
 
 	var _clear2 = _interopRequireDefault(_clear);
 
-	var _createNewFolder = __webpack_require__(74);
+	var _createNewFolder = __webpack_require__(83);
 
 	var _createNewFolder2 = _interopRequireDefault(_createNewFolder);
 
-	var _fileUpload = __webpack_require__(75);
+	var _fileUpload = __webpack_require__(84);
 
 	var _fileUpload2 = _interopRequireDefault(_fileUpload);
 
-	var _colors = __webpack_require__(47);
+	var _colors = __webpack_require__(51);
 
-	var _snackBar = __webpack_require__(42);
+	var _snackBar = __webpack_require__(46);
 
-	var _status = __webpack_require__(107);
+	var _status = __webpack_require__(85);
 
-	var _NewFolderDialog = __webpack_require__(76);
+	var _Prompt = __webpack_require__(73);
 
-	var _NewFolderDialog2 = _interopRequireDefault(_NewFolderDialog);
+	var _Prompt2 = _interopRequireDefault(_Prompt);
 
-	var _files = __webpack_require__(61);
+	var _files = __webpack_require__(66);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -3028,6 +3659,9 @@
 	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+	// import Alert from 'client/components/Prompt';
+
+	// import NewFolderDialog from '../../components/NewFolderDialog';
 
 	var Fab = function (_Component) {
 	  _inherits(Fab, _Component);
@@ -3056,15 +3690,23 @@
 
 
 	      startProgress();
-	      _this.setState({
-	        fabExpand: false
-	      });
-	      uploadFile(file).then(_this.handleActionResponse(function () {
+	      uploadFile(file).then(function (action) {
 	        endProgress();
-	        openSnackBar({
-	          message: '上传成功！'
-	        });
-	      }));
+
+	        if (action.error) {
+	          openSnackBar({
+	            message: action.payload.message
+	          });
+	          return;
+	        }
+
+	        if (action.fatalError) {
+	          openSnackBar({
+	            message: '发生错误！'
+	          });
+	          return;
+	        }
+	      });
 	    };
 
 	    _this.createFolder = function () {
@@ -3084,29 +3726,41 @@
 	      var createFolder = _this$props$actions2.createFolder;
 	      var openSnackBar = _this$props$actions2.openSnackBar;
 
-	      createFolder(name).then(_this.handleActionResponse(function () {
+	      createFolder(name).then(function (action) {
 	        _this.setState({
-	          isCreatingFolder: false,
-	          fabExpand: false
+	          isCreatingFolder: false
 	        });
-	        openSnackBar({
-	          message: '创建成功！'
-	        });
-	      }));
-	    };
 
-	    _this.handleActionResponse = function (cb) {
-	      return function (action) {
-	        if (action.fail) {
-	          (0, _snackBar.openSnackBar)({
+	        if (action.error) {
+	          openSnackBar({
 	            message: action.payload.message
 	          });
 	          return;
 	        }
 
+	        if (action.fatalError) {
+	          openSnackBar({
+	            message: '发生错误！'
+	          });
+	          return;
+	        }
+	      });
+	    };
+
+	    _this.handleActionResponse = function (cb) {
+	      return function (action) {
+	        var openSnackBar = _this.props.actions.openSnackBar;
+
 	        if (action.error) {
-	          (0, _snackBar.openSnackBar)({
-	            message: '服务器错误！'
+	          openSnackBar({
+	            message: action.payload.message
+	          });
+	          return;
+	        }
+
+	        if (action.fatalError) {
+	          openSnackBar({
+	            message: '发生错误！'
 	          });
 	          return;
 	        }
@@ -3135,7 +3789,11 @@
 	        var delay = 30 * (_this2.state.fabExpand ? _this2.actions.length - index : index);
 
 	        if (action.action) {
-	          event.onTouchTap = action.action;
+	          event.onTouchTap = function () {
+	            return _this2.setState({
+	              fabExpand: false
+	            }, action.action);
+	          };
 	        }
 
 	        return _react2.default.createElement(
@@ -3199,8 +3857,11 @@
 	            _react2.default.createElement(_add2.default, null)
 	          )
 	        ),
-	        _react2.default.createElement(_NewFolderDialog2.default, {
+	        _react2.default.createElement(_Prompt2.default, {
 	          open: this.state.isCreatingFolder,
+	          title: '新建文件夹',
+	          label: '文件夹名字',
+	          placeholder: '请输入合法的文件名',
 	          onCancel: this.handleCancelCreateFolder,
 	          onSubmit: this.handleCreateFolder
 	        })
@@ -3259,59 +3920,59 @@
 	;
 
 /***/ },
-/* 69 */
+/* 78 */
 /***/ function(module, exports) {
 
 	module.exports = {
 		"cover": "client-routes-Manage-routes-Files-views-Fab-style-index_cover_3JN",
 		"closed": "client-routes-Manage-routes-Files-views-Fab-style-index_closed_JjS",
 		"actions": "client-routes-Manage-routes-Files-views-Fab-style-index_actions_2Vm",
+		"opened": "client-routes-Manage-routes-Files-views-Fab-style-index_opened_2iQ",
 		"container": "client-routes-Manage-routes-Files-views-Fab-style-index_container_2Os",
 		"button": "client-routes-Manage-routes-Files-views-Fab-style-index_button_22o",
 		"action": "client-routes-Manage-routes-Files-views-Fab-style-index_action_2TG",
 		"tooltip": "client-routes-Manage-routes-Files-views-Fab-style-index_tooltip_IUz",
-		"opened": "client-routes-Manage-routes-Files-views-Fab-style-index_opened_2iQ",
 		"main": "client-routes-Manage-routes-Files-views-Fab-style-index_main_3m9"
 	};
 
 /***/ },
-/* 70 */
+/* 79 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-dom");
 
 /***/ },
-/* 71 */
+/* 80 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/FloatingActionButton");
 
 /***/ },
-/* 72 */
+/* 81 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/content/add");
 
 /***/ },
-/* 73 */
+/* 82 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/content/clear");
 
 /***/ },
-/* 74 */
+/* 83 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/file/create-new-folder");
 
 /***/ },
-/* 75 */
+/* 84 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/file/file-upload");
 
 /***/ },
-/* 76 */
+/* 85 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3319,107 +3980,23 @@
 	Object.defineProperty(exports, "__esModule", {
 	  value: true
 	});
+	exports.endProgress = exports.startProgress = undefined;
 
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	var _StatusActionTypes = __webpack_require__(36);
 
-	var _react = __webpack_require__(34);
+	var _createAction = __webpack_require__(47);
 
-	var _react2 = _interopRequireDefault(_react);
-
-	var _Dialog = __webpack_require__(77);
-
-	var _Dialog2 = _interopRequireDefault(_Dialog);
-
-	var _FlatButton = __webpack_require__(78);
-
-	var _FlatButton2 = _interopRequireDefault(_FlatButton);
-
-	var _TextField = __webpack_require__(79);
-
-	var _TextField2 = _interopRequireDefault(_TextField);
+	var _createAction2 = _interopRequireDefault(_createAction);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	var startProgress = exports.startProgress = (0, _createAction2.default)(_StatusActionTypes.START_PROGRESS, function (props) {
+	  return props;
+	});
 
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-	var NewFolderDialog = function (_Component) {
-	  _inherits(NewFolderDialog, _Component);
-
-	  function NewFolderDialog(props, context) {
-	    _classCallCheck(this, NewFolderDialog);
-
-	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(NewFolderDialog).call(this, props, context));
-
-	    _this.handleCancel = function () {
-	      _this.props.onCancel();
-	    };
-
-	    _this.handleSubmit = function () {
-	      _this.props.onSubmit(_this.state.value);
-	    };
-
-	    _this.handleChange = function (e) {
-	      _this.setState({ value: e.target.value });
-	    };
-
-	    _this.state = {
-	      value: undefined
-	    };
-	    return _this;
-	  }
-
-	  _createClass(NewFolderDialog, [{
-	    key: 'render',
-	    value: function render() {
-	      var actions = [_react2.default.createElement(_FlatButton2.default, {
-	        label: '取消',
-	        primary: true,
-	        onTouchTap: this.handleCancel
-	      }), _react2.default.createElement(_FlatButton2.default, {
-	        label: '确认',
-	        primary: true,
-	        onTouchTap: this.handleSubmit
-	      })];
-
-	      return _react2.default.createElement(
-	        _Dialog2.default,
-	        {
-	          title: '新建文件夹',
-	          actions: actions,
-	          modal: true,
-	          open: this.props.open
-	        },
-	        _react2.default.createElement(_TextField2.default, {
-	          value: this.state.value,
-	          onChange: this.handleChange,
-	          hintText: '请输入合法的文件名',
-	          floatingLabelText: '文件夹名字',
-	          fullWidth: true,
-	          rowsMax: 1
-	        })
-	      );
-	    }
-	  }]);
-
-	  return NewFolderDialog;
-	}(_react.Component);
-
-	NewFolderDialog.propTypes = {
-	  open: _react.PropTypes.bool,
-	  onCancel: _react.PropTypes.func,
-	  onSubmit: _react.PropTypes.func
-	};
-
-	NewFolderDialog.defaultProps = {
-	  open: false
-	};
-
-	var _default = NewFolderDialog;
-	exports.default = _default;
+	var endProgress = exports.endProgress = (0, _createAction2.default)(_StatusActionTypes.END_PROGRESS, function (props) {
+	  return props;
+	});
 	;
 
 	(function () {
@@ -3427,33 +4004,21 @@
 	    return;
 	  }
 
-	  __REACT_HOT_LOADER__.register(NewFolderDialog, 'NewFolderDialog', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/components/NewFolderDialog/index.js');
+	  __REACT_HOT_LOADER__.register(startProgress, 'startProgress', '/Users/mymomo/workspace/yunying/client/actions/status.js');
 
-	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/routes/Manage/routes/Files/components/NewFolderDialog/index.js');
+	  __REACT_HOT_LOADER__.register(endProgress, 'endProgress', '/Users/mymomo/workspace/yunying/client/actions/status.js');
 	})();
 
 	;
 
 /***/ },
-/* 77 */
+/* 86 */
 /***/ function(module, exports) {
 
-	module.exports = require("material-ui/Dialog");
+	module.exports = require("material-ui/Checkbox");
 
 /***/ },
-/* 78 */
-/***/ function(module, exports) {
-
-	module.exports = require("material-ui/FlatButton");
-
-/***/ },
-/* 79 */
-/***/ function(module, exports) {
-
-	module.exports = require("material-ui/TextField");
-
-/***/ },
-/* 80 */
+/* 87 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3465,7 +4030,7 @@
 
 	var _store = __webpack_require__(21);
 
-	var _index = __webpack_require__(51);
+	var _index = __webpack_require__(56);
 
 	var pageName = 'edit';
 	var path = 'edit';
@@ -3475,11 +4040,11 @@
 	  return {
 	    path: path,
 	    getComponent: function getComponent(nextState, cb) {
-	      var reducers = __webpack_require__(81).default;
+	      var reducers = __webpack_require__(88).default;
 	      (0, _store.injectAsyncReducer)(store, pageName, reducers);
 
 	      if (true) {
-	        cb(null, __webpack_require__(84).default);
+	        cb(null, __webpack_require__(91).default);
 	      } else {
 	        require.ensure([], function (require) {
 	          cb(null, require('./views/FileEditor').default);
@@ -3514,7 +4079,7 @@
 	;
 
 /***/ },
-/* 81 */
+/* 88 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3525,7 +4090,7 @@
 
 	var _redux = __webpack_require__(23);
 
-	var _file = __webpack_require__(82);
+	var _file = __webpack_require__(89);
 
 	var _file2 = _interopRequireDefault(_file);
 
@@ -3552,7 +4117,7 @@
 	;
 
 /***/ },
-/* 82 */
+/* 89 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3565,13 +4130,13 @@
 
 	exports.getFileContent = getFileContent;
 
-	var _FileActionTypes = __webpack_require__(83);
+	var _FileActionTypes = __webpack_require__(90);
 
 	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(80);
+	var _index = __webpack_require__(87);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -3616,7 +4181,7 @@
 	;
 
 /***/ },
-/* 83 */
+/* 90 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -3641,7 +4206,7 @@
 	;
 
 /***/ },
-/* 84 */
+/* 91 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3652,47 +4217,47 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
 	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(33);
+	var _reactRedux = __webpack_require__(37);
 
-	var _file = __webpack_require__(85);
+	var _file = __webpack_require__(92);
 
-	var _file2 = __webpack_require__(82);
+	var _file2 = __webpack_require__(89);
 
-	var _actionBar = __webpack_require__(86);
+	var _actionBar = __webpack_require__(93);
 
-	var _IconButton = __webpack_require__(63);
+	var _IconButton = __webpack_require__(68);
 
 	var _IconButton2 = _interopRequireDefault(_IconButton);
 
-	var _done = __webpack_require__(88);
+	var _done = __webpack_require__(95);
 
 	var _done2 = _interopRequireDefault(_done);
 
-	var _colors = __webpack_require__(47);
+	var _colors = __webpack_require__(51);
 
-	var _snackBar = __webpack_require__(42);
+	var _snackBar = __webpack_require__(46);
 
-	var _brace = __webpack_require__(89);
+	var _brace = __webpack_require__(96);
 
 	var _brace2 = _interopRequireDefault(_brace);
 
-	var _reactAce = __webpack_require__(90);
+	var _reactAce = __webpack_require__(97);
 
 	var _reactAce2 = _interopRequireDefault(_reactAce);
 
-	__webpack_require__(91);
+	__webpack_require__(98);
 
-	__webpack_require__(92);
+	__webpack_require__(99);
 
-	__webpack_require__(93);
+	__webpack_require__(100);
 
-	__webpack_require__(94);
+	__webpack_require__(101);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -3866,7 +4431,7 @@
 	;
 
 /***/ },
-/* 85 */
+/* 92 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3876,13 +4441,13 @@
 	});
 	exports.saveFile = exports.fetchFileContent = undefined;
 
-	var _FileActionTypes = __webpack_require__(83);
+	var _FileActionTypes = __webpack_require__(90);
 
-	var _createAction = __webpack_require__(43);
+	var _createAction = __webpack_require__(47);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
-	var _fetch = __webpack_require__(58);
+	var _fetch = __webpack_require__(63);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
@@ -3918,7 +4483,7 @@
 	;
 
 /***/ },
-/* 86 */
+/* 93 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3928,9 +4493,9 @@
 	});
 	exports.setAactionBar = undefined;
 
-	var _ActionBarActionTypes = __webpack_require__(87);
+	var _ActionBarActionTypes = __webpack_require__(94);
 
-	var _createAction = __webpack_require__(43);
+	var _createAction = __webpack_require__(47);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
@@ -3953,7 +4518,7 @@
 	;
 
 /***/ },
-/* 87 */
+/* 94 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -3975,49 +4540,49 @@
 	;
 
 /***/ },
-/* 88 */
+/* 95 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/svg-icons/action/done");
 
 /***/ },
-/* 89 */
+/* 96 */
 /***/ function(module, exports) {
 
 	module.exports = require("brace");
 
 /***/ },
-/* 90 */
+/* 97 */
 /***/ function(module, exports) {
 
 	module.exports = require("react-ace");
 
 /***/ },
-/* 91 */
+/* 98 */
 /***/ function(module, exports) {
 
 	module.exports = require("brace/mode/javascript");
 
 /***/ },
-/* 92 */
+/* 99 */
 /***/ function(module, exports) {
 
 	module.exports = require("brace/mode/html");
 
 /***/ },
-/* 93 */
+/* 100 */
 /***/ function(module, exports) {
 
 	module.exports = require("brace/mode/css");
 
 /***/ },
-/* 94 */
+/* 101 */
 /***/ function(module, exports) {
 
 	module.exports = require("brace/theme/github");
 
 /***/ },
-/* 95 */
+/* 102 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4028,11 +4593,11 @@
 
 	var _redux = __webpack_require__(23);
 
-	var _meta = __webpack_require__(96);
+	var _meta = __webpack_require__(103);
 
 	var _meta2 = _interopRequireDefault(_meta);
 
-	var _actionBar = __webpack_require__(98);
+	var _actionBar = __webpack_require__(105);
 
 	var _actionBar2 = _interopRequireDefault(_actionBar);
 
@@ -4060,7 +4625,7 @@
 	;
 
 /***/ },
-/* 96 */
+/* 103 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4073,13 +4638,13 @@
 
 	exports.getMeta = getMeta;
 
-	var _MetaActionTypes = __webpack_require__(97);
+	var _MetaActionTypes = __webpack_require__(104);
 
 	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(51);
+	var _index = __webpack_require__(56);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -4116,7 +4681,7 @@
 	;
 
 /***/ },
-/* 97 */
+/* 104 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -4138,7 +4703,7 @@
 	;
 
 /***/ },
-/* 98 */
+/* 105 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4148,13 +4713,13 @@
 	});
 	exports.getActionBarProps = getActionBarProps;
 
-	var _ActionBarActionTypes = __webpack_require__(87);
+	var _ActionBarActionTypes = __webpack_require__(94);
 
 	var _createReducer2 = __webpack_require__(31);
 
 	var _createReducer3 = _interopRequireDefault(_createReducer2);
 
-	var _index = __webpack_require__(51);
+	var _index = __webpack_require__(56);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -4187,7 +4752,7 @@
 	;
 
 /***/ },
-/* 99 */
+/* 106 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4200,35 +4765,35 @@
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-	var _index = __webpack_require__(100);
+	var _index = __webpack_require__(107);
 
 	var _index2 = _interopRequireDefault(_index);
 
-	var _react = __webpack_require__(34);
+	var _react = __webpack_require__(38);
 
 	var _react2 = _interopRequireDefault(_react);
 
 	var _redux = __webpack_require__(23);
 
-	var _reactRedux = __webpack_require__(33);
+	var _reactRedux = __webpack_require__(37);
 
-	var _actionBar = __webpack_require__(86);
+	var _actionBar = __webpack_require__(93);
 
-	var _actionBar2 = __webpack_require__(98);
+	var _actionBar2 = __webpack_require__(105);
 
-	var _meta = __webpack_require__(101);
+	var _meta = __webpack_require__(108);
 
-	var _meta2 = __webpack_require__(96);
+	var _meta2 = __webpack_require__(103);
 
-	var _AppBar = __webpack_require__(102);
+	var _AppBar = __webpack_require__(109);
 
 	var _AppBar2 = _interopRequireDefault(_AppBar);
 
-	var _Drawer = __webpack_require__(103);
+	var _Drawer = __webpack_require__(110);
 
 	var _Drawer2 = _interopRequireDefault(_Drawer);
 
-	var _MenuItem = __webpack_require__(66);
+	var _MenuItem = __webpack_require__(71);
 
 	var _MenuItem2 = _interopRequireDefault(_MenuItem);
 
@@ -4384,13 +4949,13 @@
 	;
 
 /***/ },
-/* 100 */
+/* 107 */
 /***/ function(module, exports) {
 
 	
 
 /***/ },
-/* 101 */
+/* 108 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4400,13 +4965,13 @@
 	});
 	exports.fetchBasePath = undefined;
 
-	var _MetaActionTypes = __webpack_require__(97);
+	var _MetaActionTypes = __webpack_require__(104);
 
-	var _createAction = __webpack_require__(43);
+	var _createAction = __webpack_require__(47);
 
 	var _createAction2 = _interopRequireDefault(_createAction);
 
-	var _fetch = __webpack_require__(58);
+	var _fetch = __webpack_require__(63);
 
 	var _fetch2 = _interopRequireDefault(_fetch);
 
@@ -4428,153 +4993,16 @@
 	;
 
 /***/ },
-/* 102 */
+/* 109 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/AppBar");
 
 /***/ },
-/* 103 */
+/* 110 */
 /***/ function(module, exports) {
 
 	module.exports = require("material-ui/Drawer");
-
-/***/ },
-/* 104 */
-/***/ function(module, exports) {
-
-	module.exports = require("material-ui/CircularProgress");
-
-/***/ },
-/* 105 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-
-	var _createReducer;
-
-	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-	exports.getStatus = getStatus;
-
-	var _StatusActionTypes = __webpack_require__(106);
-
-	var _createReducer2 = __webpack_require__(31);
-
-	var _createReducer3 = _interopRequireDefault(_createReducer2);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-	var initialState = {
-	  progress: {
-	    show: false
-	  }
-	};
-
-	var _default = (0, _createReducer3.default)(initialState, (_createReducer = {}, _defineProperty(_createReducer, _StatusActionTypes.START_PROGRESS, function (state, action) {
-	  return _extends({}, state, {
-	    progress: {
-	      show: true
-	    }
-	  });
-	}), _defineProperty(_createReducer, _StatusActionTypes.END_PROGRESS, function (state, action) {
-	  return _extends({}, state, {
-	    progress: {
-	      show: false
-	    }
-	  });
-	}), _createReducer));
-
-	exports.default = _default;
-	function getStatus(state) {
-	  return state.status;
-	}
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(initialState, 'initialState', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
-
-	  __REACT_HOT_LOADER__.register(getStatus, 'getStatus', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
-
-	  __REACT_HOT_LOADER__.register(_default, 'default', '/Users/mymomo/workspace/yunying/client/reducers/status.js');
-	})();
-
-	;
-
-/***/ },
-/* 106 */
-/***/ function(module, exports) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	var START_PROGRESS = exports.START_PROGRESS = 'START_PROGRESS';
-	var END_PROGRESS = exports.END_PROGRESS = 'END_PROGRESS';
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(START_PROGRESS, 'START_PROGRESS', '/Users/mymomo/workspace/yunying/client/constants/StatusActionTypes.js');
-
-	  __REACT_HOT_LOADER__.register(END_PROGRESS, 'END_PROGRESS', '/Users/mymomo/workspace/yunying/client/constants/StatusActionTypes.js');
-	})();
-
-	;
-
-/***/ },
-/* 107 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	Object.defineProperty(exports, "__esModule", {
-	  value: true
-	});
-	exports.endProgress = exports.startProgress = undefined;
-
-	var _StatusActionTypes = __webpack_require__(106);
-
-	var _createAction = __webpack_require__(43);
-
-	var _createAction2 = _interopRequireDefault(_createAction);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	var startProgress = exports.startProgress = (0, _createAction2.default)(_StatusActionTypes.START_PROGRESS, function (props) {
-	  return props;
-	});
-
-	var endProgress = exports.endProgress = (0, _createAction2.default)(_StatusActionTypes.END_PROGRESS, function (props) {
-	  return props;
-	});
-	;
-
-	(function () {
-	  if (typeof __REACT_HOT_LOADER__ === 'undefined') {
-	    return;
-	  }
-
-	  __REACT_HOT_LOADER__.register(startProgress, 'startProgress', '/Users/mymomo/workspace/yunying/client/actions/status.js');
-
-	  __REACT_HOT_LOADER__.register(endProgress, 'endProgress', '/Users/mymomo/workspace/yunying/client/actions/status.js');
-	})();
-
-	;
 
 /***/ }
 /******/ ]);

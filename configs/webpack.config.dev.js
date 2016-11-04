@@ -8,7 +8,8 @@ const baseCfg = {
 
   entry: {
     main: [
-      'webpack-hot-middleware/client',
+      // 'react-hot-loader/patch',
+      'webpack-hot-middleware/client?reload=true',
       './client/index.js',
     ],
   },

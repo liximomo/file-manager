@@ -14,6 +14,7 @@ import createRoute from 'client/route';
 import history from 'client/history/history';
 import configureStore from 'client/store';
 import createReducer from 'client/reducers';
+import { AppContainer } from 'react-hot-loader';
 // import isEqual from 'lodash/isEqual';
 // import Test from 'client/components/Test';
 
@@ -34,3 +35,22 @@ match({ history, routes }, (error, redirectLocation, renderProps) => {
     document.getElementById('root')
   );
 });
+
+// if (module.hot) {
+//   module.hot.accept('client/route', () => {
+//     const createRoute = require('client/route').default;
+//     const nextRoutes = createRoute(store);
+//     // If you use Webpack 2 in ES modules mode, you can
+//     // use <App /> here rather than require() a <NextApp />.
+//     match({ history, nextRoutes }, (error, redirectLocation, renderProps) => {
+//       render(
+//         <AppContainer>
+//           <Provider store={store}>
+//             <Router {...renderProps} />
+//           </Provider>
+//         </AppContainer>,
+//         document.getElementById('root')
+//       );
+//     });
+//   });
+// }

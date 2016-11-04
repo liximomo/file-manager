@@ -20,7 +20,10 @@ import {
   endProgress,
 } from 'client/actions/status';
 
-import NewFolderDialog from '../../components/NewFolderDialog';
+import Prompt from 'client/components/Prompt';
+// import Alert from 'client/components/Prompt';
+
+// import NewFolderDialog from '../../components/NewFolderDialog';
 
 import { createFolder, uploadFile } from '../../actions/files';
 
@@ -31,6 +34,7 @@ class Fab extends Component {
     this.state = {
       fabExpand: false,
       isCreatingFolder: false,
+      // alert: undefined,
     };
 
     this.actions = [
@@ -56,16 +60,24 @@ class Fab extends Component {
     } = this.props.actions;
 
     startProgress();
-    this.setState({
-      fabExpand: false,
-    });
     uploadFile(file)
-      .then(this.handleActionResponse(() => {
+      .then(action => {
         endProgress();
-        openSnackBar({
-          message: '上传成功！'
-        });
-      }));
+
+        if (action.error) {
+          openSnackBar({
+            message: action.payload.message
+          });
+          return;
+        }
+
+        if (action.fatalError) {
+          openSnackBar({
+            message: '发生错误！'
+          });
+          return;
+        }
+      });
   };
 
   createFolder = () => {
@@ -83,28 +95,39 @@ class Fab extends Component {
   handleCreateFolder = (name) => {
     const { createFolder, openSnackBar } = this.props.actions;
     createFolder(name)
-      .then(this.handleActionResponse(() => {
+      .then(action => {
         this.setState({
           isCreatingFolder: false,
-          fabExpand: false,
         });
-        openSnackBar({
-          message: '创建成功！'
-        });
-      }));
+
+        if (action.error) {
+          openSnackBar({
+            message: action.payload.message
+          });
+          return;
+        }
+
+        if (action.fatalError) {
+          openSnackBar({
+            message: '发生错误！'
+          });
+          return;
+        }
+      });
   };
 
   handleActionResponse = (cb) => action => {
-    if (action.fail) {
+    const { openSnackBar } = this.props.actions;
+    if (action.error) {
       openSnackBar({
         message: action.payload.message
       });
       return;
     }
 
-    if (action.error) {
+    if (action.fatalError) {
       openSnackBar({
-        message: '服务器错误！'
+        message: '发生错误！'
       });
       return;
     }
@@ -119,7 +142,10 @@ class Fab extends Component {
       const delay = (30 * (this.state.fabExpand ? (this.actions.length - index) : index))
 
       if (action.action) {
-        event.onTouchTap = action.action;
+        event.onTouchTap = () =>
+          this.setState({
+            fabExpand: false,
+          }, action.action);
       }
 
       return (
@@ -166,12 +192,15 @@ class Fab extends Component {
             <ContentAdd />
           </FloatingActionButton>
         </div>
-        <NewFolderDialog 
+        <Prompt 
           open={this.state.isCreatingFolder}
+          title="新建文件夹"
+          label="文件夹名字"
+          placeholder="请输入合法的文件名"
           onCancel={this.handleCancelCreateFolder}
           onSubmit={this.handleCreateFolder}
         />
-      </div>
+        </div>
     );
   }
 }
